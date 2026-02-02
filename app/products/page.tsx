@@ -1,73 +1,199 @@
 "use client"
 
+import { useSearchParams } from "next/navigation"
+import React, { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { useState, useMemo, useEffect } from "react"
-import { useDispatch } from "react-redux"
-import { AppDispatch } from "@/store/store"
-
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Search, Filter, ShoppingCart, Loader2 } from "lucide-react"
+import { businesses } from "@/lib/products"
+import { useDispatch } from "react-redux"
+import { AppDispatch } from "@/store/store"
 import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
 import { addToCart } from "@/slices/cartSlice"
 
-const categories = ["All", "Organic Product"]
-const priceRanges = [
-  { label: "All Prices", min: 0, max: Number.POSITIVE_INFINITY },
-  { label: "Under $500", min: 0, max: 500 },
-  { label: "$500 - $1000", min: 500, max: 1000 },
-  { label: "$1000+", min: 1000, max: Number.POSITIVE_INFINITY },
-]
+const MAX_PRICE = 1000 // Adjusted based on your product prices
+
+// Interface for the API product structure
+interface ApiProduct {
+  id: number
+  title: string
+  slug: string
+  price: number
+  image: {
+    url: string
+    thumbnailURL: string | null
+  }
+  subCategory: {
+    title: string
+    category: {
+      title: string
+    }
+  }
+  description: string | null
+  tagline: string
+  available: boolean
+  stockIn: number
+  stockOut: number
+}
 
 export default function ProductsPage() {
   const dispatch = useDispatch<AppDispatch>()
-  const [selectedCategory, setSelectedCategory] = useState("All")
-  const [selectedPriceRange, setSelectedPriceRange] = useState(priceRanges[0])
+  const searchParams = useSearchParams()
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([])
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, MAX_PRICE])
   const [searchQuery, setSearchQuery] = useState("")
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null)
 
   // Fetch products using RTK Query
   const { data: productsData, error, isLoading } = useGetProductsQuery({ page: 1, limit: 100 })
 
-  // Console log the response
-  useEffect(() => {
-    if (productsData) {
-      console.log('Products API Response:', productsData)
-      console.log('Products:', productsData.docs)
+  // Extract unique categories and subcategories from API data
+  const { categories, subcategoriesMap } = useMemo(() => {
+    if (!productsData?.docs) {
+      return { categories: [], subcategoriesMap: {} }
     }
+
+    const categoriesSet = new Set<string>()
+    const subCatMap: Record<string, Set<string>> = {}
+
+    productsData.docs.forEach((product) => {
+      const category = product.subCategory.category.title
+      const subcategory = product.subCategory.title
+
+      categoriesSet.add(category)
+      
+      if (!subCatMap[category]) {
+        subCatMap[category] = new Set()
+      }
+      subCatMap[category].add(subcategory)
+    })
+
+    const categoriesArray = Array.from(categoriesSet)
+    const subcategoriesMapArray: Record<string, string[]> = {}
+    
+    Object.keys(subCatMap).forEach(cat => {
+      subcategoriesMapArray[cat] = Array.from(subCatMap[cat])
+    })
+
+    return { categories: categoriesArray, subcategoriesMap: subcategoriesMapArray }
   }, [productsData])
 
   useEffect(() => {
-    if (error) {
-      console.error('Products API Error:', error)
+    const categoryParam = searchParams.get("category")
+    const subcategoryParam = searchParams.get("subcategory")
+    if (categoryParam) {
+      setSelectedCategories([categoryParam])
     }
-  }, [error])
+    if (subcategoryParam) {
+      setSelectedSubcategories([subcategoryParam])
+    }
+  }, [searchParams])
 
+  // Filter products from API data
   const filteredProducts = useMemo(() => {
     if (!productsData?.docs) return []
 
     return productsData.docs.filter((product) => {
-      const matchesCategory = selectedCategory === "All" || product.subCategory.category.title === selectedCategory
-      const matchesPrice = product.price >= selectedPriceRange.min && product.price <= selectedPriceRange.max
-      const matchesSearch =
+      const category = product.subCategory.category.title
+      const subcategory = product.subCategory.title
+
+      const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(category)
+      const matchesSubcategory = selectedSubcategories.length === 0 || selectedSubcategories.includes(subcategory)
+      const matchesPrice = product.price >= priceRange[0] && product.price <= priceRange[1]
+      const matchesSearch = 
         product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchQuery.toLowerCase())
+        (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()))
 
-      return matchesCategory && matchesPrice && matchesSearch
+      return matchesCategory && matchesSubcategory && matchesPrice && matchesSearch
     })
-  }, [productsData, selectedCategory, selectedPriceRange, searchQuery])
+  }, [productsData, selectedCategories, selectedSubcategories, priceRange, searchQuery])
 
-  const handleAddToCart = (product: any) => {
+  const toggleCategory = (category: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+    )
+    setSelectedSubcategories([])
+  }
+
+  const toggleSubcategory = (subcategory: string) => {
+    setSelectedSubcategories((prev) =>
+      prev.includes(subcategory) ? prev.filter((s) => s !== subcategory) : [...prev, subcategory]
+    )
+  }
+
+  const clearFilters = () => {
+    setSelectedBusiness(null)
+    setSelectedCategories([])
+    setSelectedSubcategories([])
+    setPriceRange([0, MAX_PRICE])
+    setSearchQuery("")
+  }
+
+  const availableSubcategories = selectedCategories.length === 1 
+    ? subcategoriesMap[selectedCategories[0]] || [] 
+    : []
+
+  // Accept a broader product shape (from different parts of the app) and normalize fields used by the cart
+  type CartProductSource = {
+    id: number
+    title?: string
+    name?: string
+    price: number
+    image?: { url?: string; thumbnailURL?: string } | string | null
+  }
+
+  const handleAddToCart = (product: CartProductSource) => {
+    const imageUrl =
+      typeof product.image === "string"
+        ? product.image
+        : product.image?.thumbnailURL || product.image?.url
+
     dispatch(addToCart({
       id: product.id,
-      name: product.title,
+      name: product.title || product.name || "Item",
       price: product.price,
-      image: getImageUrl(product.image?.sizes?.card?.url || product.image?.url),
+      image: getImageUrl(imageUrl),
       quantity: 1
     }))
   }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Loading products...</span>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-lg text-red-500">Error loading products. Please try again.</p>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  const totalProducts = productsData?.docs?.length || 0
 
   return (
     <div className="min-h-screen bg-background">
@@ -79,166 +205,480 @@ export default function ProductsPage() {
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-4xl md:text-5xl font-light text-foreground mb-6">Our Product Collection</h1>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              Discover our complete range of organic beauty products, each carefully formulated with the finest
-              botanical ingredients for your natural beauty routine.
+              Discover our complete range of organic products, each carefully selected for quality and freshness.
             </p>
           </div>
         </div>
       </section>
 
-      <section className="py-8 border-b">
+      {/* Business Tabs Section - Keep if needed, or remove if not using */}
+      {businesses && businesses.length > 0 && (
+        <section className="py-4 sm:py-6 border-b bg-secondary/30">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-3 sm:mb-4">Browse by Business</p>
+              <div className="flex gap-2 sm:gap-3 justify-start flex-wrap sm:flex-nowrap">
+                <button
+                  onClick={() => setSelectedBusiness(null)}
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-full whitespace-nowrap border text-xs sm:text-sm transition-all ${
+                    selectedBusiness === null
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border hover:border-primary/50"
+                  }`}
+                >
+                  All
+                </button>
+                {businesses.map((business) => (
+                  <button
+                    key={business.id}
+                    onClick={() => setSelectedBusiness(business.id)}
+                    className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-full border text-xs sm:text-sm transition-all ${
+                      selectedBusiness === business.id
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <img
+                      src={business.logo || "/placeholder.svg"}
+                      alt={business.name}
+                      className="w-6 h-6 sm:w-6 sm:h-6 rounded-full object-cover"
+                    />
+                    <span className="hidden sm:inline font-medium">{business.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Main Content Section */}
+      <section className="py-8">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Sidebar - Filters (Desktop Only) */}
+            <div className="hidden lg:block lg:col-span-1">
+              <div className="sticky top-4">
+                {/* Search Bar */}
+                <div className="mb-6">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      type="text"
+                      placeholder="Search products..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 w-full"
+                    />
+                  </div>
+                </div>
+
+                {/* Filters Label */}
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-base font-semibold text-foreground">Filters</span>
+                </div>
+
+                {/* Filter Accordion */}
+                <Accordion type="single" collapsible className="w-full">
+                  {/* Category Filter */}
+                  {categories.length > 0 && (
+                    <AccordionItem value="category" className="border-b">
+                      <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
+                        <span className="text-sm font-medium text-left">Category</span>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-0 py-3 pb-4">
+                        <div className="flex flex-col gap-3">
+                          {categories.map((category) => (
+                            <div
+                              key={category}
+                              className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
+                            >
+                              <Checkbox
+                                id={`category-${category}`}
+                                checked={selectedCategories.includes(category)}
+                                onCheckedChange={() => toggleCategory(category)}
+                                className="border-2 w-5 h-5"
+                              />
+                              <label
+                                htmlFor={`category-${category}`}
+                                className="text-sm cursor-pointer flex-1 font-medium"
+                              >
+                                {category}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {/* Subcategory Filter */}
+                  {availableSubcategories.length > 0 && (
+                    <AccordionItem value="subcategory" className="border-b">
+                      <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
+                        <span className="text-sm font-medium text-left">Subcategory</span>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-0 py-3 pb-4">
+                        <div className="flex flex-col gap-3">
+                          {availableSubcategories.map((subcategory) => (
+                            <div
+                              key={subcategory}
+                              className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
+                            >
+                              <Checkbox
+                                id={`subcategory-${subcategory}`}
+                                checked={selectedSubcategories.includes(subcategory)}
+                                onCheckedChange={() => toggleSubcategory(subcategory)}
+                                className="border-2 w-5 h-5"
+                              />
+                              <label
+                                htmlFor={`subcategory-${subcategory}`}
+                                className="text-sm cursor-pointer flex-1 font-medium"
+                              >
+                                {subcategory}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {/* Price Range Filter */}
+                  <AccordionItem value="price" className="border-b">
+                    <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
+                      <span className="text-sm font-medium text-left">Price Range</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-0 py-3 pb-4">
+                      <div className="flex flex-col gap-4">
+                        {/* Range Slider */}
+                        <div className="relative pt-2">
+                          <input
+                            type="range"
+                            min="0"
+                            max={MAX_PRICE}
+                            value={priceRange[0]}
+                            onChange={(e) => {
+                              const newMin = Math.min(Number(e.target.value), priceRange[1])
+                              setPriceRange([newMin, priceRange[1]])
+                            }}
+                            className="absolute w-full h-2 bg-primary/20 rounded-lg appearance-none cursor-pointer z-5 accent-primary"
+                          />
+                          <input
+                            type="range"
+                            min="0"
+                            max={MAX_PRICE}
+                            value={priceRange[1]}
+                            onChange={(e) => {
+                              const newMax = Math.max(Number(e.target.value), priceRange[0])
+                              setPriceRange([priceRange[0], newMax])
+                            }}
+                            className="absolute w-full h-2 bg-primary/20 rounded-lg appearance-none cursor-pointer z-3 accent-primary"
+                          />
+                        </div>
+
+                        {/* Price Inputs */}
+                        <div className="flex gap-3 items-center mt-4">
+                          <div className="flex-1">
+                            <label className="text-xs text-muted-foreground block mb-1">Min</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max={MAX_PRICE}
+                              value={priceRange[0]}
+                              onChange={(e) => {
+                                const newMin = Math.min(Number(e.target.value), priceRange[1])
+                                setPriceRange([newMin, priceRange[1]])
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-xs text-muted-foreground block mb-1">Max</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              max={MAX_PRICE}
+                              value={priceRange[1]}
+                              onChange={(e) => {
+                                const newMax = Math.max(Number(e.target.value), priceRange[0])
+                                setPriceRange([priceRange[0], newMax])
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                {/* Clear Filters Button */}
+                {(selectedCategories.length > 0 ||
+                  selectedSubcategories.length > 0 ||
+                  priceRange[0] !== 0 ||
+                  priceRange[1] !== MAX_PRICE) && (
+                  <Button variant="outline" size="sm" onClick={clearFilters} className="w-full mt-6 bg-transparent">
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Main Content - Products */}
+            <div className="lg:col-span-3">
+              {/* Results Header with Filter Button for Mobile */}
+              <div className="flex justify-between items-center mb-6 gap-4">
+                <div className="text-sm text-muted-foreground">
+                  Showing {filteredProducts.length} of {totalProducts} products
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsDrawerOpen(true)}
+                  className="lg:hidden flex items-center gap-2 bg-transparent"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filters
+                </Button>
+              </div>
+
+              {/* Products Grid */}
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-lg text-muted-foreground mb-4">No products found matching your criteria.</p>
+                  <Button variant="outline" onClick={clearFilters}>
+                    Clear Filters
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredProducts.map((product) => (
+                    <Card key={product.id} className="group hover:shadow-lg transition-shadow duration-300">
+                      <CardContent className="p-0">
+                        <div className="aspect-square overflow-hidden rounded-t-lg relative">
+                          <img
+                            src={product.image.thumbnailURL || product.image.url || "/placeholder.svg"}
+                            alt={product.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        </div>
+                        <div className="p-5">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
+                              {product.subCategory.title}
+                            </span>
+                            <span className="text-sm font-semibold text-primary">৳{product.price}</span>
+                          </div>
+                          <h3 className="font-semibold text-foreground mb-2 text-sm">{product.title}</h3>
+                          <p className="text-xs text-muted-foreground mb-4 leading-relaxed line-clamp-2">
+                            {product.description || ((product as any).tagline && (product as any).tagline.replace(/_/g, ' '))}
+                          </p>
+                          <div className="flex items-center gap-2 mb-4">
+                            {product.preOrder && (
+                              <span className="text-xs bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded">
+                                Pre-Order ({product.preOrderTime} {product.preOrderTimeUnit}s)
+                              </span>
+                            )}
+                            {(product as any).tagline && (
+                              <span className="text-xs bg-green-500/10 text-green-700 dark:text-green-400 px-2 py-1 rounded">
+                                {(product as any).tagline.replace(/_/g, ' ')}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Link href={`/products/${product.id}`} className="flex-1">
+                              <Button variant="outline" size="sm" className="w-full bg-transparent text-xs">
+                                Details
+                              </Button>
+                            </Link>
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleAddToCart(product)}
+                              className="gap-1 text-xs flex-1"
+                              disabled={(product as any).stockIn === 0}
+                            >
+                              <ShoppingCart className="h-3 w-3" />
+                              {(product as any).stockIn > 0 ? 'Add to Cart' : 'Out of Stock'}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Mobile/Tablet Filter Drawer */}
+      <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader className="border-b">
+            <div className="flex items-center justify-between">
+              <DrawerTitle>Filters</DrawerTitle>
+              <DrawerClose asChild>
+                <Button variant="ghost" size="sm">✕</Button>
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+          <div className="max-h-[70vh] overflow-y-auto px-4 py-4">
             {/* Search Bar */}
             <div className="mb-6">
-              <div className="relative max-w-md">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
                   type="text"
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 w-full"
                 />
               </div>
             </div>
 
-            {/* Filter Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Filter by:</span>
-              </div>
+            {/* Filters - Same structure as desktop */}
+            <Accordion type="single" collapsible className="w-full">
+              {categories.length > 0 && (
+                <AccordionItem value="category" className="border-b">
+                  <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
+                    <span className="text-sm font-medium text-left">Category</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-0 py-3 pb-4">
+                    <div className="flex flex-col gap-3">
+                      {categories.map((category) => (
+                        <div
+                          key={category}
+                          className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
+                        >
+                          <Checkbox
+                            id={`drawer-category-${category}`}
+                            checked={selectedCategories.includes(category)}
+                            onCheckedChange={() => toggleCategory(category)}
+                            className="border-2 w-5 h-5"
+                          />
+                          <label
+                            htmlFor={`drawer-category-${category}`}
+                            className="text-sm cursor-pointer flex-1 font-medium"
+                          >
+                            {category}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
 
-              <div className="flex flex-col sm:flex-row gap-4">
-                {/* Category Filter */}
-                <div className="flex flex-wrap gap-2">
-                  {categories.map((category) => (
-                    <Button
-                      key={category}
-                      variant={selectedCategory === category ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedCategory(category)}
-                      className="text-xs"
-                    >
-                      {category}
-                    </Button>
-                  ))}
-                </div>
+              {availableSubcategories.length > 0 && (
+                <AccordionItem value="subcategory" className="border-b">
+                  <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
+                    <span className="text-sm font-medium text-left">Subcategory</span>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-0 py-3 pb-4">
+                    <div className="flex flex-col gap-3">
+                      {availableSubcategories.map((subcategory) => (
+                        <div
+                          key={subcategory}
+                          className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
+                        >
+                          <Checkbox
+                            id={`drawer-subcategory-${subcategory}`}
+                            checked={selectedSubcategories.includes(subcategory)}
+                            onCheckedChange={() => toggleSubcategory(subcategory)}
+                            className="border-2 w-5 h-5"
+                          />
+                          <label
+                            htmlFor={`drawer-subcategory-${subcategory}`}
+                            className="text-sm cursor-pointer flex-1 font-medium"
+                          >
+                            {subcategory}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
 
-                {/* Price Range Filter */}
-                <div className="flex flex-wrap gap-2">
-                  {priceRanges.map((range) => (
-                    <Button
-                      key={range.label}
-                      variant={selectedPriceRange.label === range.label ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedPriceRange(range)}
-                      className="text-xs"
-                    >
-                      {range.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Results Count */}
-            {!isLoading && productsData && (
-              <div className="mt-4 text-sm text-muted-foreground">
-                Showing {filteredProducts.length} of {productsData.totalDocs} products
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Products Grid */}
-      <section className="py-16">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-muted-foreground">Loading products...</span>
-            </div>
-          ) : error ? (
-            <div className="text-center py-12">
-              <p className="text-lg text-destructive mb-4">Error loading products. Please try again.</p>
-              <p className="text-sm text-muted-foreground">Check console for details.</p>
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-lg text-muted-foreground mb-4">No products found matching your criteria.</p>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSelectedCategory("All")
-                  setSelectedPriceRange(priceRanges[0])
-                  setSearchQuery("")
-                }}
-              >
-                Clear Filters
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-              {filteredProducts.map((product:any) => (
-                <Card key={product.id} className="group hover:shadow-lg transition-shadow duration-300">
-                  <CardContent className="p-0">
-                    <div className="aspect-square overflow-hidden rounded-t-lg">
-                      <img
-                        src={getImageUrl(product.image?.sizes?.card?.url || product.image?.url)}
-                        alt={product.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              <AccordionItem value="price" className="border-b">
+                <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
+                  <span className="text-sm font-medium text-left">Price Range</span>
+                </AccordionTrigger>
+                <AccordionContent className="px-0 py-3 pb-4">
+                  <div className="flex flex-col gap-4">
+                    <div className="relative pt-2">
+                      <input
+                        type="range"
+                        min="0"
+                        max={MAX_PRICE}
+                        value={priceRange[0]}
+                        onChange={(e) => {
+                          const newMin = Math.min(Number(e.target.value), priceRange[1])
+                          setPriceRange([newMin, priceRange[1]])
+                        }}
+                        className="absolute w-full h-2 bg-primary/20 rounded-lg appearance-none cursor-pointer z-5 accent-primary"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max={MAX_PRICE}
+                        value={priceRange[1]}
+                        onChange={(e) => {
+                          const newMax = Math.max(Number(e.target.value), priceRange[0])
+                          setPriceRange([priceRange[0], newMax])
+                        }}
+                        className="absolute w-full h-2 bg-primary/20 rounded-lg appearance-none cursor-pointer z-3 accent-primary"
                       />
                     </div>
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
-                          {product.subCategory.title}
-                        </span>
-                        <span className="text-lg font-semibold text-primary">${product.price}</span>
+                    <div className="flex gap-3 items-center mt-4">
+                      <div className="flex-1">
+                        <label className="text-xs text-muted-foreground block mb-1">Min</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={MAX_PRICE}
+                          value={priceRange[0]}
+                          onChange={(e) => {
+                            const newMin = Math.min(Number(e.target.value), priceRange[1])
+                            setPriceRange([newMin, priceRange[1]])
+                          }}
+                          className="text-sm"
+                        />
                       </div>
-                      <h3 className="font-semibold text-foreground mb-2">{product.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-4 leading-relaxed line-clamp-2">
-                        {product.description}
-                      </p>
-                      <div className="flex items-center gap-2 mb-4">
-                        {product.preOrder && (
-                          <span className="text-xs bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded">
-                            Pre-Order ({product.preOrderTime} {product.preOrderTimeUnit}s)
-                          </span>
-                        )}
-                        {product.purity && (
-                          <span className="text-xs bg-green-500/10 text-green-700 dark:text-green-400 px-2 py-1 rounded">
-                            {product.purity.replace(/_/g, ' ')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Link href={`/products/${product.id}`} className="flex-1">
-                          <Button variant="outline" size="sm" className="w-full bg-transparent">
-                            View Details
-                          </Button>
-                        </Link>
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleAddToCart(product)}
-                            className="gap-1"
-                            disabled={!product.isAvailable || product.stockIn === 0}
-                          >
-                            <ShoppingCart className="h-4 w-4" />
-                            {product.isAvailable && product.stockIn > 0 ? 'Add to Cart' : 'Out of Stock'}
-                          </Button>
+                      <div className="flex-1">
+                        <label className="text-xs text-muted-foreground block mb-1">Max</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={MAX_PRICE}
+                          value={priceRange[1]}
+                          onChange={(e) => {
+                            const newMax = Math.max(Number(e.target.value), priceRange[0])
+                            setPriceRange([priceRange[0], newMax])
+                          }}
+                          className="text-sm"
+                        />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            {(selectedCategories.length > 0 ||
+              selectedSubcategories.length > 0 ||
+              priceRange[0] !== 0 ||
+              priceRange[1] !== MAX_PRICE) && (
+              <Button variant="outline" size="sm" onClick={clearFilters} className="w-full mt-6 bg-transparent">
+                Clear Filters
+              </Button>
+            )}
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       <Footer />
     </div>

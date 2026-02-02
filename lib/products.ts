@@ -1,3 +1,16 @@
+export const businesses = [
+  {
+    id: "cosmetics",
+    name: "Beauty Essentials",
+    logo: "/cosmetics-business-logo.jpg",
+  },
+  {
+    id: "food",
+    name: "Organic Wellness",
+    logo: "/food-business-logo.jpg",
+  },
+]
+
 export const products = [
   {
     id: 1,
@@ -5,6 +18,8 @@ export const products = [
     price: "$48",
     priceValue: 48,
     category: "Skincare",
+    subcategory: "Serums",
+    business: "cosmetics",
     image: "/organic-vitamin-c-serum-bottle-with-dropper.jpg",
     description: "Vitamin C brightening serum with organic botanicals for radiant skin",
     longDescription:
@@ -23,6 +38,7 @@ export const products = [
       "Provides antioxidant protection",
     ],
     howToUse: "Apply 2-3 drops to clean skin morning and evening. Follow with moisturizer and SPF during the day.",
+    featured: true,
   },
   {
     id: 2,
@@ -30,6 +46,8 @@ export const products = [
     price: "$36",
     priceValue: 36,
     category: "Skincare",
+    subcategory: "Moisturizers",
+    business: "cosmetics",
     image: "/organic-face-moisturizer-jar-with-natural-ingredie.jpg",
     description: "Rich moisturizer with shea butter and botanical oils for deep hydration",
     longDescription:
@@ -37,6 +55,7 @@ export const products = [
     ingredients: ["Organic Shea Butter", "Jojoba Oil", "Ceramides", "Peptides", "Vitamin E"],
     benefits: ["Deep hydration", "Restores skin barrier", "Anti-aging properties", "Suitable for sensitive skin"],
     howToUse: "Apply to clean face and neck morning and evening. Massage gently until absorbed.",
+    featured: true,
   },
   {
     id: 3,
@@ -44,6 +63,8 @@ export const products = [
     price: "$32",
     priceValue: 32,
     category: "Skincare",
+    subcategory: "Cleansers",
+    business: "cosmetics",
     image: "/organic-cleansing-oil-bottle-with-pump-dispenser.jpg",
     description: "Deep cleansing oil with organic jojoba and rosehip for makeup removal",
     longDescription:
@@ -56,6 +77,7 @@ export const products = [
       "Non-comedogenic",
     ],
     howToUse: "Apply to dry skin, massage gently, then rinse with warm water or remove with a damp cloth.",
+    featured: true,
   },
   {
     id: 4,
@@ -63,6 +85,8 @@ export const products = [
     price: "$42",
     priceValue: 42,
     category: "Haircare",
+    subcategory: "Treatments",
+    business: "cosmetics",
     image: "/organic-hair-mask-jar-with-natural-ingredients.jpg",
     description: "Intensive treatment mask with argan oil and botanical extracts",
     longDescription:
@@ -70,6 +94,7 @@ export const products = [
     ingredients: ["Organic Argan Oil", "Keratin Proteins", "Coconut Oil", "Shea Butter", "Botanical Extracts"],
     benefits: ["Repairs damaged hair", "Adds shine and softness", "Strengthens hair fibers", "Reduces frizz"],
     howToUse: "Apply to damp hair from mid-length to ends. Leave for 10-15 minutes, then rinse thoroughly.",
+    featured: true,
   },
   {
     id: 5,
@@ -77,6 +102,8 @@ export const products = [
     price: "$28",
     priceValue: 28,
     category: "Body Care",
+    subcategory: "Lotions",
+    business: "cosmetics",
     image: "/organic-body-lotion-bottle-with-pump.jpg",
     description: "Lightweight lotion with organic aloe vera and coconut oil",
     longDescription:
@@ -84,6 +111,7 @@ export const products = [
     ingredients: ["Organic Aloe Vera", "Coconut Oil", "Shea Butter", "Vitamin E", "Lavender Extract"],
     benefits: ["Long-lasting hydration", "Fast absorption", "Soothes irritated skin", "Natural fragrance"],
     howToUse: "Apply to clean, dry skin all over the body. Use daily for best results.",
+    featured: true,
   },
   {
     id: 6,
@@ -91,6 +119,8 @@ export const products = [
     price: "$34",
     priceValue: 34,
     category: "Body Care",
+    subcategory: "Scrubs",
+    business: "cosmetics",
     image: "/organic-body-scrub-jar-with-natural-exfoliants.jpg",
     description: "Gentle scrub with organic sugar and essential oils for smooth skin",
     longDescription:
@@ -99,6 +129,7 @@ export const products = [
     benefits: ["Gentle exfoliation", "Removes dead skin cells", "Moisturizes while scrubbing", "Improves skin texture"],
     howToUse:
       "Apply to damp skin in circular motions, focusing on rough areas. Rinse with warm water. Use 2-3 times per week.",
+    featured: false,
   },
 ]
 
