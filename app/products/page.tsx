@@ -17,10 +17,10 @@ import { useDispatch } from "react-redux"
 import { AppDispatch } from "@/store/store"
 import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
 import { addToCart } from "@/slices/cartSlice"
+import { useGetCategoriesQuery } from "@/api/categories"
 
-const MAX_PRICE = 1000 // Adjusted based on your product prices
+const MAX_PRICE = 1000
 
-// Interface for the API product structure
 interface ApiProduct {
   id: number
   title: string
@@ -31,118 +31,128 @@ interface ApiProduct {
     thumbnailURL: string | null
   }
   subCategory: {
+    id: number
     title: string
+    slug: string
     category: {
+      id: number
       title: string
+      slug: string
     }
   }
   description: string | null
-  tagline: string
   available: boolean
   stockIn: number
   stockOut: number
+  preOrder?: boolean
+  preOrderTime?: number
+  preOrderTimeUnit?: string
+}
+
+interface ApiCategory {
+  id: number
+  title: string
+  slug: string
 }
 
 export default function ProductsPage() {
   const dispatch = useDispatch<AppDispatch>()
   const searchParams = useSearchParams()
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([])
+
+  // Filter state - using IDs instead of titles
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
+  const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState<number[]>([])
   const [priceRange, setPriceRange] = useState<[number, number]>([0, MAX_PRICE])
   const [searchQuery, setSearchQuery] = useState("")
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null)
 
-  // Fetch products using RTK Query
-  const { data: productsData, error, isLoading } = useGetProductsQuery({ page: 1, limit: 100 })
+  // Fetch categories from API
+  const { data: categoriesData, isLoading: categoriesLoading } = useGetCategoriesQuery({
+    page: 1,
+    limit: 50,
+  })
 
-  // Extract unique categories and subcategories from API data
-  const { categories, subcategoriesMap } = useMemo(() => {
-    if (!productsData?.docs) {
-      return { categories: [], subcategoriesMap: {} }
-    }
+  // Fetch products with category filter - Pass IDs to API
+  const { data: productsData, error, isLoading } = useGetProductsQuery({
+    page: 1,
+    limit: 100,
+    categoryId: selectedCategoryId || undefined,
+    subcategoryIds: selectedSubcategoryIds.length > 0 ? selectedSubcategoryIds : undefined,
+  })
 
-    const categoriesSet = new Set<string>()
-    const subCatMap: Record<string, Set<string>> = {}
+  // Get categories from API
+  const apiCategories = useMemo(() => {
+    return categoriesData?.docs ?? []
+  }, [categoriesData])
+
+  // Extract available subcategories from filtered products
+  const availableSubcategories = useMemo(() => {
+    if (!selectedCategoryId || !productsData?.docs) return []
+
+    const subcats = new Map<number, { id: number; title: string }>()
 
     productsData.docs.forEach((product) => {
-      const category = product.subCategory.category.title
-      const subcategory = product.subCategory.title
-
-      categoriesSet.add(category)
-      
-      if (!subCatMap[category]) {
-        subCatMap[category] = new Set()
+      if (product.subCategory.category.id === selectedCategoryId) {
+        const subcat = product.subCategory
+        if (!subcats.has(subcat.id)) {
+          subcats.set(subcat.id, {
+            id: subcat.id,
+            title: subcat.title,
+          })
+        }
       }
-      subCatMap[category].add(subcategory)
     })
 
-    const categoriesArray = Array.from(categoriesSet)
-    const subcategoriesMapArray: Record<string, string[]> = {}
-    
-    Object.keys(subCatMap).forEach(cat => {
-      subcategoriesMapArray[cat] = Array.from(subCatMap[cat])
-    })
+    return Array.from(subcats.values())
+  }, [selectedCategoryId, productsData])
 
-    return { categories: categoriesArray, subcategoriesMap: subcategoriesMapArray }
-  }, [productsData])
-
+  // Initialize filters from URL params
   useEffect(() => {
-    const categoryParam = searchParams.get("category")
-    const subcategoryParam = searchParams.get("subcategory")
+    const categoryParam = searchParams.get("categoryId")
+    const subcategoryParam = searchParams.get("subcategoryId")
+
     if (categoryParam) {
-      setSelectedCategories([categoryParam])
+      setSelectedCategoryId(Number(categoryParam))
     }
     if (subcategoryParam) {
-      setSelectedSubcategories([subcategoryParam])
+      setSelectedSubcategoryIds([Number(subcategoryParam)])
     }
   }, [searchParams])
 
-  // Filter products from API data
+  // Filter products client-side by price and search
   const filteredProducts = useMemo(() => {
     if (!productsData?.docs) return []
 
     return productsData.docs.filter((product) => {
-      const category = product.subCategory.category.title
-      const subcategory = product.subCategory.title
-
-      const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(category)
-      const matchesSubcategory = selectedSubcategories.length === 0 || selectedSubcategories.includes(subcategory)
       const matchesPrice = product.price >= priceRange[0] && product.price <= priceRange[1]
-      const matchesSearch = 
+      const matchesSearch =
         product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()))
 
-      return matchesCategory && matchesSubcategory && matchesPrice && matchesSearch
+      return matchesPrice && matchesSearch
     })
-  }, [productsData, selectedCategories, selectedSubcategories, priceRange, searchQuery])
+  }, [productsData, priceRange, searchQuery])
 
-  const toggleCategory = (category: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
-    )
-    setSelectedSubcategories([])
+  const toggleCategory = (categoryId: number) => {
+    setSelectedCategoryId(selectedCategoryId === categoryId ? null : categoryId)
+    setSelectedSubcategoryIds([]) // Clear subcategories when category changes
   }
 
-  const toggleSubcategory = (subcategory: string) => {
-    setSelectedSubcategories((prev) =>
-      prev.includes(subcategory) ? prev.filter((s) => s !== subcategory) : [...prev, subcategory]
+  const toggleSubcategory = (subcategoryId: number) => {
+    setSelectedSubcategoryIds((prev) =>
+      prev.includes(subcategoryId) ? prev.filter((id) => id !== subcategoryId) : [...prev, subcategoryId]
     )
   }
 
   const clearFilters = () => {
     setSelectedBusiness(null)
-    setSelectedCategories([])
-    setSelectedSubcategories([])
+    setSelectedCategoryId(null)
+    setSelectedSubcategoryIds([])
     setPriceRange([0, MAX_PRICE])
     setSearchQuery("")
   }
 
-  const availableSubcategories = selectedCategories.length === 1 
-    ? subcategoriesMap[selectedCategories[0]] || [] 
-    : []
-
-  // Accept a broader product shape (from different parts of the app) and normalize fields used by the cart
   type CartProductSource = {
     id: number
     title?: string
@@ -153,21 +163,21 @@ export default function ProductsPage() {
 
   const handleAddToCart = (product: CartProductSource) => {
     const imageUrl =
-      typeof product.image === "string"
-        ? product.image
-        : product.image?.thumbnailURL || product.image?.url
+      typeof product.image === "string" ? product.image : product.image?.thumbnailURL || product.image?.url
 
-    dispatch(addToCart({
-      id: product.id,
-      name: product.title || product.name || "Item",
-      price: product.price,
-      image: getImageUrl(imageUrl),
-      quantity: 1
-    }))
+    dispatch(
+      addToCart({
+        id: product.id,
+        name: product.title || product.name || "Item",
+        price: product.price,
+        image: getImageUrl(imageUrl),
+        quantity: 1,
+      })
+    )
   }
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || categoriesLoading) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -211,7 +221,7 @@ export default function ProductsPage() {
         </div>
       </section>
 
-      {/* Business Tabs Section - Keep if needed, or remove if not using */}
+      {/* Business Tabs Section */}
       {businesses && businesses.length > 0 && (
         <section className="py-4 sm:py-6 border-b bg-secondary/30">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -281,29 +291,29 @@ export default function ProductsPage() {
                 {/* Filter Accordion */}
                 <Accordion type="single" collapsible className="w-full">
                   {/* Category Filter */}
-                  {categories.length > 0 && (
+                  {apiCategories.length > 0 && (
                     <AccordionItem value="category" className="border-b">
                       <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
                         <span className="text-sm font-medium text-left">Category</span>
                       </AccordionTrigger>
                       <AccordionContent className="px-0 py-3 pb-4">
                         <div className="flex flex-col gap-3">
-                          {categories.map((category) => (
+                          {apiCategories.map((category) => (
                             <div
-                              key={category}
+                              key={category.id}
                               className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
                             >
                               <Checkbox
-                                id={`category-${category}`}
-                                checked={selectedCategories.includes(category)}
-                                onCheckedChange={() => toggleCategory(category)}
+                                id={`category-${category.id}`}
+                                checked={selectedCategoryId === category.id}
+                                onCheckedChange={() => toggleCategory(category.id)}
                                 className="border-2 w-5 h-5"
                               />
                               <label
-                                htmlFor={`category-${category}`}
+                                htmlFor={`category-${category.id}`}
                                 className="text-sm cursor-pointer flex-1 font-medium"
                               >
-                                {category}
+                                {category.title}
                               </label>
                             </div>
                           ))}
@@ -322,20 +332,20 @@ export default function ProductsPage() {
                         <div className="flex flex-col gap-3">
                           {availableSubcategories.map((subcategory) => (
                             <div
-                              key={subcategory}
+                              key={subcategory.id}
                               className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
                             >
                               <Checkbox
-                                id={`subcategory-${subcategory}`}
-                                checked={selectedSubcategories.includes(subcategory)}
-                                onCheckedChange={() => toggleSubcategory(subcategory)}
+                                id={`subcategory-${subcategory.id}`}
+                                checked={selectedSubcategoryIds.includes(subcategory.id)}
+                                onCheckedChange={() => toggleSubcategory(subcategory.id)}
                                 className="border-2 w-5 h-5"
                               />
                               <label
-                                htmlFor={`subcategory-${subcategory}`}
+                                htmlFor={`subcategory-${subcategory.id}`}
                                 className="text-sm cursor-pointer flex-1 font-medium"
                               >
-                                {subcategory}
+                                {subcategory.title}
                               </label>
                             </div>
                           ))}
@@ -414,10 +424,11 @@ export default function ProductsPage() {
                 </Accordion>
 
                 {/* Clear Filters Button */}
-                {(selectedCategories.length > 0 ||
-                  selectedSubcategories.length > 0 ||
+                {(selectedCategoryId !== null ||
+                  selectedSubcategoryIds.length > 0 ||
                   priceRange[0] !== 0 ||
-                  priceRange[1] !== MAX_PRICE) && (
+                  priceRange[1] !== MAX_PRICE ||
+                  searchQuery !== "") && (
                   <Button variant="outline" size="sm" onClick={clearFilters} className="w-full mt-6 bg-transparent">
                     Clear Filters
                   </Button>
@@ -472,17 +483,12 @@ export default function ProductsPage() {
                           </div>
                           <h3 className="font-semibold text-foreground mb-2 text-sm">{product.title}</h3>
                           <p className="text-xs text-muted-foreground mb-4 leading-relaxed line-clamp-2">
-                            {product.description || ((product as any).tagline && (product as any).tagline.replace(/_/g, ' '))}
+                            {product.description || "No description available"}
                           </p>
                           <div className="flex items-center gap-2 mb-4">
                             {product.preOrder && (
                               <span className="text-xs bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded">
                                 Pre-Order ({product.preOrderTime} {product.preOrderTimeUnit}s)
-                              </span>
-                            )}
-                            {(product as any).tagline && (
-                              <span className="text-xs bg-green-500/10 text-green-700 dark:text-green-400 px-2 py-1 rounded">
-                                {(product as any).tagline.replace(/_/g, ' ')}
                               </span>
                             )}
                           </div>
@@ -492,14 +498,14 @@ export default function ProductsPage() {
                                 Details
                               </Button>
                             </Link>
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               onClick={() => handleAddToCart(product)}
                               className="gap-1 text-xs flex-1"
-                              disabled={(product as any).stockIn === 0}
+                              disabled={product.stockIn === 0}
                             >
                               <ShoppingCart className="h-3 w-3" />
-                              {(product as any).stockIn > 0 ? 'Add to Cart' : 'Out of Stock'}
+                              {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
                             </Button>
                           </div>
                         </div>
@@ -520,7 +526,9 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between">
               <DrawerTitle>Filters</DrawerTitle>
               <DrawerClose asChild>
-                <Button variant="ghost" size="sm">✕</Button>
+                <Button variant="ghost" size="sm">
+                  ✕
+                </Button>
               </DrawerClose>
             </div>
           </DrawerHeader>
@@ -541,29 +549,29 @@ export default function ProductsPage() {
 
             {/* Filters - Same structure as desktop */}
             <Accordion type="single" collapsible className="w-full">
-              {categories.length > 0 && (
+              {apiCategories.length > 0 && (
                 <AccordionItem value="category" className="border-b">
                   <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
                     <span className="text-sm font-medium text-left">Category</span>
                   </AccordionTrigger>
                   <AccordionContent className="px-0 py-3 pb-4">
                     <div className="flex flex-col gap-3">
-                      {categories.map((category) => (
+                      {apiCategories.map((category) => (
                         <div
-                          key={category}
+                          key={category.id}
                           className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
                         >
                           <Checkbox
-                            id={`drawer-category-${category}`}
-                            checked={selectedCategories.includes(category)}
-                            onCheckedChange={() => toggleCategory(category)}
+                            id={`drawer-category-${category.id}`}
+                            checked={selectedCategoryId === category.id}
+                            onCheckedChange={() => toggleCategory(category.id)}
                             className="border-2 w-5 h-5"
                           />
                           <label
-                            htmlFor={`drawer-category-${category}`}
+                            htmlFor={`drawer-category-${category.id}`}
                             className="text-sm cursor-pointer flex-1 font-medium"
                           >
-                            {category}
+                            {category.title}
                           </label>
                         </div>
                       ))}
@@ -581,20 +589,20 @@ export default function ProductsPage() {
                     <div className="flex flex-col gap-3">
                       {availableSubcategories.map((subcategory) => (
                         <div
-                          key={subcategory}
+                          key={subcategory.id}
                           className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
                         >
                           <Checkbox
-                            id={`drawer-subcategory-${subcategory}`}
-                            checked={selectedSubcategories.includes(subcategory)}
-                            onCheckedChange={() => toggleSubcategory(subcategory)}
+                            id={`drawer-subcategory-${subcategory.id}`}
+                            checked={selectedSubcategoryIds.includes(subcategory.id)}
+                            onCheckedChange={() => toggleSubcategory(subcategory.id)}
                             className="border-2 w-5 h-5"
                           />
                           <label
-                            htmlFor={`drawer-subcategory-${subcategory}`}
+                            htmlFor={`drawer-subcategory-${subcategory.id}`}
                             className="text-sm cursor-pointer flex-1 font-medium"
                           >
-                            {subcategory}
+                            {subcategory.title}
                           </label>
                         </div>
                       ))}
@@ -668,10 +676,11 @@ export default function ProductsPage() {
               </AccordionItem>
             </Accordion>
 
-            {(selectedCategories.length > 0 ||
-              selectedSubcategories.length > 0 ||
+            {(selectedCategoryId !== null ||
+              selectedSubcategoryIds.length > 0 ||
               priceRange[0] !== 0 ||
-              priceRange[1] !== MAX_PRICE) && (
+              priceRange[1] !== MAX_PRICE ||
+              searchQuery !== "") && (
               <Button variant="outline" size="sm" onClick={clearFilters} className="w-full mt-6 bg-transparent">
                 Clear Filters
               </Button>

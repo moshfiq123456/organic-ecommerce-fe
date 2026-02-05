@@ -14,8 +14,10 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Minus, Plus, X } from "lucide-react"
 import { removeFromCart, updateQuantity } from "@/slices/cartSlice"
+import { useCreateOrderMutation } from "@/api/orderApi"
 
 export default function OrderPage() {
+  const [createOrder, { isLoading }] = useCreateOrderMutation()
   const dispatch = useDispatch<AppDispatch>()
   const cartItems = useSelector((state: RootState) => state.cart.items)
 
@@ -53,10 +55,45 @@ export default function OrderPage() {
     })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    alert("Thank you for your order! We will contact you soon to confirm your purchase.")
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+
+  if (cartItems.length === 0) return
+
+  const payload = {
+    orderItems: cartItems.map((item) => ({
+      product: item.id,
+      quantity: item.quantity,
+    })),
+
+    paymentMethod: formData.paymentMethod,
+    transactionId: null,
+
+    phone: formData.phone,
+    city: formData.city,
+    address: formData.address,
+
+    status: 2,
+    notes: formData.notes || null,
+
+    customerName: `${formData.firstName} ${formData.lastName}`.trim(),
   }
+
+  try {
+    const res = await createOrder(payload).unwrap()
+    console.log("ORDER SUCCESS ✅", res)
+
+    alert("Order placed successfully!")
+    // optional next steps:
+    // dispatch(clearCart())
+    // router.push("/thank-you")
+  } catch (error) {
+    console.error("ORDER FAILED ❌", error)
+    alert("Failed to place order")
+  }
+}
+
+
 
   return (
     <div className="min-h-screen bg-background">
