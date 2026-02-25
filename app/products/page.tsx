@@ -4,14 +4,13 @@ import { useSearchParams } from "next/navigation"
 import React, { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
-import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { Search, Filter, ShoppingCart, Loader2 } from "lucide-react"
+import { Search, Filter, ShoppingCart, Loader2, Eye } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { businesses } from "@/lib/products"
 import { useDispatch } from "react-redux"
 import { AppDispatch } from "@/store/store"
@@ -20,6 +19,123 @@ import { addToCart } from "@/slices/cartSlice"
 import { useGetCategoriesQuery } from "@/api/categories"
 
 const MAX_PRICE = 1000
+
+// ── Product card variants ─────────────────────────────
+const cardVariants = {
+  hidden: { opacity: 0, y: 28, scale: 0.97 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
+  exit:    { opacity: 0, scale: 0.93, transition: { duration: 0.25 } },
+}
+
+function ProductCard({
+  product,
+  onAddToCart,
+}: {
+  product: ApiProduct
+  onAddToCart: (p: ApiProduct) => void
+}) {
+  const [hovered, setHovered] = useState(false)
+
+  return (
+    <motion.div
+      layout
+      variants={cardVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      whileHover={{ y: -5 }}
+      transition={{ type: "spring", stiffness: 300, damping: 26 }}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+      className="bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-shadow duration-300 flex flex-col"
+    >
+      {/* Image */}
+      <div className="relative aspect-square overflow-hidden bg-secondary/20 shrink-0">
+        <motion.img
+          src={product.image.thumbnailURL || product.image.url || "/placeholder.svg"}
+          alt={product.title}
+          animate={{ scale: hovered ? 1.08 : 1 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full h-full object-cover"
+        />
+
+        {/* Hover overlay — quick view */}
+        <AnimatePresence>
+          {hovered && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="absolute inset-0 bg-black/25 flex items-end justify-center pb-4"
+            >
+              <motion.div
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 8, opacity: 0 }}
+                transition={{ delay: 0.04, duration: 0.2 }}
+              >
+                <Link href={`/products/${product.id}`}>
+                  <Button size="sm" variant="secondary" className="gap-1.5 text-xs shadow-lg rounded-full px-4">
+                    <Eye className="h-3.5 w-3.5" /> Quick View
+                  </Button>
+                </Link>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Badges */}
+        {product.stockIn === 0 && (
+          <span className="absolute top-2.5 right-2.5 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+            Out of Stock
+          </span>
+        )}
+        {product.preOrder && (
+          <span className="absolute top-2.5 left-2.5 bg-yellow-500/90 text-white text-[10px] px-2 py-0.5 rounded-full">
+            Pre-order · {product.preOrderTime} {product.preOrderTimeUnit}s
+          </span>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="p-4 flex flex-col flex-1">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+            {product.subCategory.title}
+          </span>
+          <span className="text-sm font-semibold text-primary">৳{product.price}</span>
+        </div>
+
+        <h3 className="font-semibold text-foreground text-sm mb-1.5 line-clamp-1">{product.title}</h3>
+        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
+          {product.description || "No description available"}
+        </p>
+
+        <div className="flex gap-2 mt-4">
+          <Link href={`/products/${product.id}`} className="flex-1">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+              <Button variant="outline" size="sm" className="w-full bg-transparent text-xs rounded-xl">
+                Details
+              </Button>
+            </motion.div>
+          </Link>
+          <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+            <Button
+              size="sm"
+              onClick={() => onAddToCart(product)}
+              className="gap-1 text-xs w-full rounded-xl"
+              disabled={product.stockIn === 0}
+            >
+              <ShoppingCart className="h-3 w-3" />
+              {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
 
 interface ApiProduct {
   id: number
@@ -180,7 +296,6 @@ export default function ProductsPage() {
   if (isLoading || categoriesLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <span className="ml-2 text-muted-foreground">Loading products...</span>
@@ -194,7 +309,6 @@ export default function ProductsPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
           <p className="text-lg text-red-500">Error loading products. Please try again.</p>
         </div>
@@ -207,16 +321,26 @@ export default function ProductsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       {/* Hero Section */}
       <section className="py-16 bg-secondary/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl font-light text-foreground mb-6">Our Product Collection</h1>
-            <p className="text-lg text-muted-foreground leading-relaxed">
+            <motion.h1
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              className="text-4xl md:text-5xl font-light text-foreground mb-6"
+            >
+              Our Product Collection
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+              className="text-lg text-muted-foreground leading-relaxed"
+            >
               Discover our complete range of organic products, each carefully selected for quality and freshness.
-            </p>
+            </motion.p>
           </div>
         </div>
       </section>
@@ -456,63 +580,28 @@ export default function ProductsPage() {
 
               {/* Products Grid */}
               {filteredProducts.length === 0 ? (
-                <div className="text-center py-12">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center py-12"
+                >
                   <p className="text-lg text-muted-foreground mb-4">No products found matching your criteria.</p>
                   <Button variant="outline" onClick={clearFilters}>
                     Clear Filters
                   </Button>
-                </div>
+                </motion.div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredProducts.map((product) => (
-                    <Card key={product.id} className="group hover:shadow-lg transition-shadow duration-300">
-                      <CardContent className="p-0">
-                        <div className="aspect-square overflow-hidden rounded-t-lg relative">
-                          <img
-                            src={product.image.thumbnailURL || product.image.url || "/placeholder.svg"}
-                            alt={product.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        </div>
-                        <div className="p-5">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
-                              {product.subCategory.title}
-                            </span>
-                            <span className="text-sm font-semibold text-primary">৳{product.price}</span>
-                          </div>
-                          <h3 className="font-semibold text-foreground mb-2 text-sm">{product.title}</h3>
-                          <p className="text-xs text-muted-foreground mb-4 leading-relaxed line-clamp-2">
-                            {product.description || "No description available"}
-                          </p>
-                          <div className="flex items-center gap-2 mb-4">
-                            {product.preOrder && (
-                              <span className="text-xs bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2 py-1 rounded">
-                                Pre-Order ({product.preOrderTime} {product.preOrderTimeUnit}s)
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            <Link href={`/products/${product.id}`} className="flex-1">
-                              <Button variant="outline" size="sm" className="w-full bg-transparent text-xs">
-                                Details
-                              </Button>
-                            </Link>
-                            <Button
-                              size="sm"
-                              onClick={() => handleAddToCart(product)}
-                              className="gap-1 text-xs flex-1"
-                              disabled={product.stockIn === 0}
-                            >
-                              <ShoppingCart className="h-3 w-3" />
-                              {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <AnimatePresence mode="popLayout">
+                    {filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onAddToCart={handleAddToCart}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
               )}
             </div>
           </div>

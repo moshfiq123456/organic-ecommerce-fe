@@ -1,4 +1,3 @@
-import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Leaf, Heart, Award, Users } from "lucide-react"
@@ -6,8 +5,6 @@ import { Leaf, Heart, Award, Users } from "lucide-react"
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       {/* Hero Section */}
       <section className="py-16 bg-secondary/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">

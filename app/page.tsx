@@ -5,7 +5,6 @@ import { useDispatch } from "react-redux"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ArrowRight, Leaf, Heart, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -47,8 +46,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       {/* Hero Section */}
       <HeroCarousel />
       {/* <section className="relative py-20 lg:py-32">
@@ -176,7 +173,7 @@ export default function HomePage() {
           <p className="text-lg mb-8 opacity-90 max-w-2xl mx-auto">
             Join thousands of customers who have discovered the power of organic beauty
           </p>
-          <Link href="/order">
+          <Link href="/products">
             <Button size="lg" variant="secondary">
               Start Shopping
             </Button>

@@ -3,7 +3,6 @@ import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ArrowLeft, ShoppingCart, Heart, Share2 } from "lucide-react"
 import { getProductById } from "@/lib/products"
@@ -24,8 +23,6 @@ export default function ProductPage({ params }: ProductPageProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
         <Link

@@ -7,6 +7,7 @@ import { Suspense } from "react"
 
 import "./globals.css"
 import { Providers } from "./providers"
+import { Header } from "@/components/header"
 
 export const metadata: Metadata = {
   title: "Pure Botanics - Organic Beauty Products",
@@ -24,6 +25,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
         <Providers>
+          <Header />
           <Suspense fallback={null}>{children}</Suspense>
         </Providers>
         <Analytics />
