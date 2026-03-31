@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Footer } from "@/components/footer"
 import { Minus, Plus, X, Loader2, AlertCircle, ShoppingBag, Truck } from "lucide-react"
 import { removeFromCart, updateQuantity } from "@/slices/cartSlice"
 import { useCreateOrderMutation } from "@/api/orderApi"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
+import Link from "next/link"
 
 // ─── Animation helpers ─────────────────────────────────────────────────────────
 
@@ -374,7 +374,7 @@ export default function OrderPage() {
                       type="submit"
                       size="lg"
                       className="w-full h-12 text-sm tracking-[0.15em] uppercase"
-                      disabled={isLoading}
+                      disabled={isLoading || cartItems.length === 0}
                     >
                       {isLoading ? (
                         <span className="flex items-center gap-2">
@@ -416,15 +416,27 @@ export default function OrderPage() {
                 <div className="p-5">
                   <AnimatePresence initial={false} mode="wait">
                     {cartItems.length === 0 ? (
-                      <motion.p
+                      <motion.div
                         key="empty"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="py-10 text-center text-sm text-muted-foreground"
+                        className="py-10 flex flex-col items-center gap-4 text-center"
                       >
-                        Your cart is empty.
-                      </motion.p>
+                        <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+                          <ShoppingBag className="w-7 h-7 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Your cart is empty</p>
+                          <p className="text-xs text-muted-foreground mt-1">Add products before placing an order</p>
+                        </div>
+                        <Link
+                          href="/products"
+                          className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors"
+                        >
+                          Browse Products
+                        </Link>
+                      </motion.div>
                     ) : (
                       <motion.div key="items" className="space-y-3">
                         <AnimatePresence>
@@ -540,7 +552,6 @@ export default function OrderPage() {
         </div>
       </div>
 
-      <Footer />
     </div>
   )
 }

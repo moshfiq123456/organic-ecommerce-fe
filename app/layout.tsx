@@ -8,6 +8,7 @@ import { Suspense } from "react"
 import "./globals.css"
 import { Providers } from "./providers"
 import { Header } from "@/components/header"
+import { Footer } from "@/components/footer"
 
 export const metadata: Metadata = {
   title: "Pure Botanics - Organic Beauty Products",
@@ -26,7 +27,12 @@ export default function RootLayout({
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
         <Providers>
           <Header />
-          <Suspense fallback={null}>{children}</Suspense>
+          <Suspense fallback={null}>
+            <main className="pt-18 [&:has(.hero-fullbleed)]:pt-0">
+              {children}
+            </main>
+          </Suspense>
+          <Footer />
         </Providers>
         <Analytics />
       </body>

@@ -1,13 +1,17 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSelector, useDispatch } from "react-redux"
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion"
-import { ShoppingBag, Menu, X, Leaf, Minus, Plus, Trash2, ShoppingCart } from "lucide-react"
+import { ShoppingBag, Menu, X, Leaf, Minus, Plus, Trash2, ShoppingCart, Search } from "lucide-react"
 import type { RootState } from "@/store/store"
 import { removeFromCart, updateQuantity } from "@/slices/cartSlice"
+import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
+import { useGetMainMenuQuery } from "@/api/mainMenuApi"
+import { useRouter } from "next/navigation"
 import {
   Drawer,
   DrawerClose,
@@ -16,10 +20,172 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 
-const navLinks = [
+function NavSearch({ isTransparent }: { isTransparent: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => setDebouncedQuery(query), 400)
+    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current) }
+  }, [query])
+
+  const { data, isFetching } = useGetProductsQuery(
+    { page: 1, limit: 6, q: debouncedQuery || undefined },
+    { skip: debouncedQuery.trim().length < 1 }
+  )
+
+  const results = data?.docs ?? []
+
+  // Focus input when overlay opens
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 50)
+    else { setQuery(""); setDebouncedQuery("") }
+  }, [open])
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [])
+
+  const handleSelect = (id: number) => {
+    router.push(`/products/${id}`)
+    setOpen(false)
+  }
+
+  return (
+    <>
+      {/* Search icon button */}
+      <motion.button
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.92 }}
+        onClick={() => setOpen(true)}
+        className={`p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`}
+        aria-label="Search"
+      >
+        <Search className="h-5 w-5" />
+      </motion.button>
+
+      {/* Portal — renders at body level so backdrop covers full screen */}
+      {typeof window !== "undefined" && createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-md flex items-start justify-center pt-24 px-4"
+              onClick={(e) => { if (e.target === e.currentTarget) setOpen(false) }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                className="w-full max-w-2xl bg-background rounded-2xl shadow-2xl border border-border overflow-hidden"
+              >
+                {/* Search input */}
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
+                  <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search products..."
+                    className="flex-1 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground"
+                  />
+                  <button
+                    onClick={() => setOpen(false)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Results */}
+                <div className="max-h-105 overflow-y-auto p-3">
+                  {debouncedQuery.trim().length < 1 ? (
+                    <p className="text-muted-foreground text-sm text-center py-10">Type to search products...</p>
+                  ) : isFetching ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
+                          <div className="w-12 h-12 rounded-lg bg-muted animate-pulse shrink-0" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-3 bg-muted animate-pulse rounded-full w-3/4" />
+                            <div className="h-3 bg-muted animate-pulse rounded-full w-1/3" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : results.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 gap-3">
+                      <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+                        <Search className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-foreground">No products found</p>
+                        <p className="text-xs text-muted-foreground mt-1">No results for <span className="font-semibold">"{debouncedQuery}"</span></p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {results.map((product) => (
+                        <button
+                          key={product.id}
+                          onClick={() => handleSelect(product.id)}
+                          className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors text-left border border-transparent hover:border-border"
+                        >
+                          <div className="w-12 h-12 rounded-lg overflow-hidden bg-secondary/40 shrink-0">
+                            <img
+                              src={getImageUrl(product.image?.thumbnailURL || product.image?.url)}
+                              alt={product.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-foreground font-medium text-sm truncate">{product.title}</p>
+                            <p className="text-muted-foreground text-xs mt-0.5">৳{product.price}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
+  )
+}
+
+const TITLE_TO_HREF: Record<string, string> = {
+  home: "/",
+  products: "/products",
+  order: "/order",
+  "track order": "/order/track",
+  about: "/about",
+  contact: "/contact",
+}
+
+interface NavLink { href: string; label: string }
+
+const FALLBACK_NAV: NavLink[] = [
   { href: "/", label: "Home" },
   { href: "/products", label: "Products" },
   { href: "/order", label: "Order" },
+  { href: "/order/track", label: "Track Order" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ]
@@ -29,8 +195,28 @@ export function Header() {
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [hoveredLink, setHoveredLink] = useState<string | null>(null)
   const [scrolled, setScrolled] = useState(false)
-  const [isHiding, setIsHiding] = useState(false)
   const [cartBounce, setCartBounce] = useState(false)
+  const [slug, setSlug] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    setSlug(window.location.hostname.split(".")[0])
+  }, [])
+
+  const { data: mainMenuData } = useGetMainMenuQuery(slug!, { skip: !slug })
+
+  useEffect(() => {
+    if (mainMenuData) console.log("Main menu:", mainMenuData)
+  }, [mainMenuData])
+
+  const menuDoc = mainMenuData?.docs?.[0]
+  const navLinks: NavLink[] = menuDoc?.items?.length
+    ? menuDoc.items.map((item: { id: string; title: string }) => ({
+        href: TITLE_TO_HREF[item.title.toLowerCase()] ?? `/${item.title.toLowerCase().replace(/\s+/g, "-")}`,
+        label: item.title,
+      }))
+    : FALLBACK_NAV
+  const logoUrl = menuDoc?.logo?.url ?? null
+  const brandName = menuDoc?.subDomain?.title ?? "Pure Botanics"
 
   const pathname = usePathname()
   const dispatch = useDispatch()
@@ -38,15 +224,10 @@ export function Header() {
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const prevCartCount = useRef(cartCount)
-  const lastScrollY = useRef(0)
   const { scrollY } = useScroll()
 
   useMotionValueEvent(scrollY, "change", (latest) => {
-    const delta = latest - lastScrollY.current
     setScrolled(latest > 20)
-    if (latest > 100 && delta > 5) setIsHiding(true)
-    else if (delta < -5) setIsHiding(false)
-    lastScrollY.current = latest
   })
 
   // Shake + auto-open cart drawer when item is added
@@ -70,21 +251,29 @@ export function Header() {
     else dispatch(updateQuantity({ id, quantity: next }))
   }
 
+  // Transparent only on home page when at top
+  const isHome = pathname === "/"
+  const isTransparent = isHome && !scrolled
+
   return (
     <>
       {/* ── Main Header ── */}
       <motion.header
-        className="sticky top-0 z-50 w-full"
-        animate={{ y: isHiding ? "-100%" : 0 }}
-        transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+        className="fixed top-0 left-0 right-0 z-50 w-full pointer-events-none"
+        animate={{ paddingTop: scrolled ? 12 : 0, paddingLeft: scrolled ? 16 : 0, paddingRight: scrolled ? 16 : 0 }}
+        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
       >
-        <div
+        <motion.div
           className={[
-            "transition-all duration-500 w-full",
-            scrolled
-              ? "bg-background/90 backdrop-blur-xl shadow-[0_1px_28px_rgba(0,0,0,0.08)] border-b border-border"
-              : "bg-transparent border-b border-transparent",
+            "pointer-events-auto transition-colors duration-500 w-full",
+            isTransparent
+              ? "bg-transparent border-b border-white/10"
+              : scrolled
+                ? "bg-background/90 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-border"
+                : "bg-background/90 backdrop-blur-xl shadow-[0_1px_28px_rgba(0,0,0,0.08)] border-b border-border",
           ].join(" ")}
+          animate={{ borderRadius: scrolled ? 16 : 0 }}
+          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         >
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
@@ -100,15 +289,26 @@ export function Header() {
               >
                 <Link href="/" className="flex items-center gap-2.5">
                   <motion.div
-                    whileHover={{ rotate: 18, scale: 1.12 }}
+                    whileHover={{ scale: 1.08 }}
                     transition={{ type: "spring", stiffness: 280, damping: 14 }}
-                    className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm shrink-0"
+                    className="shrink-0"
                   >
-                    <Leaf className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={brandName}
+                        className="h-9 w-auto object-contain rounded-xl"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm">
+                        <Leaf className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
+                      </div>
+                    )}
                   </motion.div>
                   <div className="flex flex-col leading-none">
-                    <span className="text-[15px] font-bold tracking-tight text-foreground">Pure Botanics</span>
-                    <span className="text-[10px] tracking-widest uppercase text-muted-foreground mt-0.5">Organic Beauty</span>
+                    <span className={`text-[15px] font-bold tracking-tight transition-colors duration-500 ${isTransparent ? "text-white" : "text-foreground"}`}>
+                      {brandName}
+                    </span>
                   </div>
                 </Link>
               </motion.div>
@@ -132,7 +332,7 @@ export function Header() {
                       {hoveredLink === link.href && (
                         <motion.div
                           layoutId="nav-pill"
-                          className="absolute inset-0 rounded-lg bg-foreground/6"
+                          className={`absolute inset-0 rounded-lg ${isTransparent ? "bg-white/10" : "bg-foreground/6"}`}
                           initial={false}
                           transition={{ type: "spring", stiffness: 400, damping: 32 }}
                         />
@@ -141,7 +341,9 @@ export function Header() {
                         href={link.href}
                         className={[
                           "relative z-10 px-4 py-2 text-sm block transition-colors duration-150",
-                          isActive ? "text-primary font-semibold" : "font-medium text-foreground/60 hover:text-foreground",
+                          isTransparent
+                            ? isActive ? "text-white font-semibold" : "font-medium text-white/70 hover:text-white"
+                            : isActive ? "text-primary font-semibold" : "font-medium text-foreground/60 hover:text-foreground",
                         ].join(" ")}
                       >
                         {link.label}
@@ -149,7 +351,7 @@ export function Header() {
                       {isActive && (
                         <motion.div
                           layoutId="active-underline"
-                          className="absolute bottom-0 left-3 right-3 h-[2.5px] rounded-full bg-linear-to-r from-primary/40 via-primary to-primary/40"
+                          className={`absolute bottom-0 left-3 right-3 h-[2.5px] rounded-full ${isTransparent ? "bg-white/60" : "bg-linear-to-r from-primary/40 via-primary to-primary/40"}`}
                           initial={false}
                           transition={{ type: "spring", stiffness: 380, damping: 30 }}
                         />
@@ -158,6 +360,9 @@ export function Header() {
                   )
                 })}
               </nav>
+
+              {/* ── Search ── */}
+              <NavSearch isTransparent={isTransparent} />
 
               {/* ── Actions ── */}
               <motion.div
@@ -173,7 +378,7 @@ export function Header() {
                   transition={{ duration: 0.55, ease: "easeInOut" }}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  className="relative p-2.5 rounded-xl hover:bg-foreground/6 transition-colors"
+                  className={`relative p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`}
                   aria-label="Open cart"
                 >
                   <ShoppingBag className="h-5 w-5" />
@@ -197,7 +402,7 @@ export function Header() {
                 <motion.button
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  className="md:hidden p-2.5 rounded-xl hover:bg-foreground/6 transition-colors"
+                  className={`md:hidden p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`}
                   onClick={() => setIsMenuOpen((v) => !v)}
                   aria-label="Toggle menu"
                 >
@@ -216,7 +421,7 @@ export function Header() {
               </motion.div>
             </motion.div>
           </div>
-        </div>
+        </motion.div>
       </motion.header>
 
       {/* ── Cart Drawer ── */}
@@ -365,10 +570,14 @@ export function Header() {
         <DrawerContent className="flex flex-col p-0">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
             <Link href="/" className="flex items-center gap-2" onClick={() => setIsMenuOpen(false)}>
-              <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
-                <Leaf className="w-4 h-4 text-primary-foreground" strokeWidth={2.5} />
-              </div>
-              <span className="font-bold text-sm tracking-tight">Pure Botanics</span>
+              {logoUrl ? (
+                <img src={logoUrl} alt={brandName} className="h-7 w-auto object-contain rounded-lg" />
+              ) : (
+                <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
+                  <Leaf className="w-4 h-4 text-primary-foreground" strokeWidth={2.5} />
+                </div>
+              )}
+              <span className="font-bold text-sm tracking-tight">{brandName}</span>
             </Link>
             <DrawerClose asChild>
               <button className="p-1.5 rounded-lg hover:bg-muted transition-colors" aria-label="Close menu">

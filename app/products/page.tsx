@@ -1,14 +1,13 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import React, { useState, useMemo, useEffect } from "react"
+import React, { useState, useMemo, useEffect, useRef } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
-import { Footer } from "@/components/footer"
 import { Search, Filter, ShoppingCart, Loader2, Eye } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { businesses } from "@/lib/products"
@@ -16,14 +15,13 @@ import { useDispatch } from "react-redux"
 import { AppDispatch } from "@/store/store"
 import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
 import { addToCart } from "@/slices/cartSlice"
-import { useGetCategoriesQuery } from "@/api/categories"
 
 const MAX_PRICE = 1000
 
 // ── Product card variants ─────────────────────────────
 const cardVariants = {
   hidden: { opacity: 0, y: 28, scale: 0.97 },
-  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const } },
   exit:    { opacity: 0, scale: 0.93, transition: { duration: 0.25 } },
 }
 
@@ -175,85 +173,66 @@ export default function ProductsPage() {
   const dispatch = useDispatch<AppDispatch>()
   const searchParams = useSearchParams()
 
-  // Filter state - using IDs instead of titles
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState<number[]>([])
   const [priceRange, setPriceRange] = useState<[number, number]>([0, MAX_PRICE])
   const [searchQuery, setSearchQuery] = useState("")
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null)
+  const [slug, setSlug] = useState<string | undefined>(undefined)
 
-  // Fetch categories from API
-  const { data: categoriesData, isLoading: categoriesLoading } = useGetCategoriesQuery({
-    page: 1,
-    limit: 50,
-  })
+  // Read tenant slug from hostname
+  useEffect(() => {
+    setSlug(window.location.hostname.split(".")[0])
+  }, [])
 
-  // Fetch products with category filter - Pass IDs to API
-  const { data: productsData, error, isLoading } = useGetProductsQuery({
-    page: 1,
-    limit: 100,
-    categoryId: selectedCategoryId || undefined,
-    subcategoryIds: selectedSubcategoryIds.length > 0 ? selectedSubcategoryIds : undefined,
-  })
+  // Debounce search query — 400ms
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery)
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Get categories from API
-  const apiCategories = useMemo(() => {
-    return categoriesData?.docs ?? []
-  }, [categoriesData])
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => setDebouncedSearch(searchQuery), 400)
+    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current) }
+  }, [searchQuery])
 
-  // Extract available subcategories from filtered products
+  // Fetch products — filtered by tenant slug via subCategory.category.code
+  const { data: productsData, error, isLoading } = useGetProductsQuery(
+    {
+      page: 1,
+      limit: 100,
+      categoryCode: slug,
+      subcategoryIds: selectedSubcategoryIds.length > 0 ? selectedSubcategoryIds : undefined,
+      q: debouncedSearch || undefined,
+    },
+    { skip: !slug }
+  )
+
+  // Extract available subcategories from products
   const availableSubcategories = useMemo(() => {
-    if (!selectedCategoryId || !productsData?.docs) return []
-
+    if (!productsData?.docs) return []
     const subcats = new Map<number, { id: number; title: string }>()
-
     productsData.docs.forEach((product) => {
-      if (product.subCategory.category.id === selectedCategoryId) {
-        const subcat = product.subCategory
-        if (!subcats.has(subcat.id)) {
-          subcats.set(subcat.id, {
-            id: subcat.id,
-            title: subcat.title,
-          })
-        }
+      const subcat = product.subCategory
+      if (!subcats.has(subcat.id)) {
+        subcats.set(subcat.id, { id: subcat.id, title: subcat.title })
       }
     })
-
     return Array.from(subcats.values())
-  }, [selectedCategoryId, productsData])
+  }, [productsData])
 
-  // Initialize filters from URL params
+  // Initialize subcategory from URL params
   useEffect(() => {
-    const categoryParam = searchParams.get("categoryId")
     const subcategoryParam = searchParams.get("subcategoryId")
-
-    if (categoryParam) {
-      setSelectedCategoryId(Number(categoryParam))
-    }
-    if (subcategoryParam) {
-      setSelectedSubcategoryIds([Number(subcategoryParam)])
-    }
+    if (subcategoryParam) setSelectedSubcategoryIds([Number(subcategoryParam)])
   }, [searchParams])
 
-  // Filter products client-side by price and search
+  // Filter products client-side by price only (search is handled by the API)
   const filteredProducts = useMemo(() => {
     if (!productsData?.docs) return []
-
-    return productsData.docs.filter((product) => {
-      const matchesPrice = product.price >= priceRange[0] && product.price <= priceRange[1]
-      const matchesSearch =
-        product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()))
-
-      return matchesPrice && matchesSearch
-    })
-  }, [productsData, priceRange, searchQuery])
-
-  const toggleCategory = (categoryId: number) => {
-    setSelectedCategoryId(selectedCategoryId === categoryId ? null : categoryId)
-    setSelectedSubcategoryIds([]) // Clear subcategories when category changes
-  }
+    return productsData.docs.filter(
+      (product) => product.price >= priceRange[0] && product.price <= priceRange[1]
+    )
+  }, [productsData, priceRange])
 
   const toggleSubcategory = (subcategoryId: number) => {
     setSelectedSubcategoryIds((prev) =>
@@ -263,7 +242,6 @@ export default function ProductsPage() {
 
   const clearFilters = () => {
     setSelectedBusiness(null)
-    setSelectedCategoryId(null)
     setSelectedSubcategoryIds([])
     setPriceRange([0, MAX_PRICE])
     setSearchQuery("")
@@ -274,7 +252,7 @@ export default function ProductsPage() {
     title?: string
     name?: string
     price: number
-    image?: { url?: string; thumbnailURL?: string } | string | null
+    image?: { url?: string; thumbnailURL?: string | null } | string | null
   }
 
   const handleAddToCart = (product: CartProductSource) => {
@@ -293,14 +271,13 @@ export default function ProductsPage() {
   }
 
   // Loading state
-  if (isLoading || categoriesLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <span className="ml-2 text-muted-foreground">Loading products...</span>
         </div>
-        <Footer />
       </div>
     )
   }
@@ -312,7 +289,6 @@ export default function ProductsPage() {
         <div className="flex items-center justify-center min-h-[60vh]">
           <p className="text-lg text-red-500">Error loading products. Please try again.</p>
         </div>
-        <Footer />
       </div>
     )
   }
@@ -345,46 +321,6 @@ export default function ProductsPage() {
         </div>
       </section>
 
-      {/* Business Tabs Section */}
-      {businesses && businesses.length > 0 && (
-        <section className="py-4 sm:py-6 border-b bg-secondary/30">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-3 sm:mb-4">Browse by Business</p>
-              <div className="flex gap-2 sm:gap-3 justify-start flex-wrap sm:flex-nowrap">
-                <button
-                  onClick={() => setSelectedBusiness(null)}
-                  className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-full whitespace-nowrap border text-xs sm:text-sm transition-all ${
-                    selectedBusiness === null
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background border-border hover:border-primary/50"
-                  }`}
-                >
-                  All
-                </button>
-                {businesses.map((business) => (
-                  <button
-                    key={business.id}
-                    onClick={() => setSelectedBusiness(business.id)}
-                    className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-full border text-xs sm:text-sm transition-all ${
-                      selectedBusiness === business.id
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <img
-                      src={business.logo || "/placeholder.svg"}
-                      alt={business.name}
-                      className="w-6 h-6 sm:w-6 sm:h-6 rounded-full object-cover"
-                    />
-                    <span className="hidden sm:inline font-medium">{business.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Main Content Section */}
       <section className="py-8">
@@ -414,38 +350,6 @@ export default function ProductsPage() {
 
                 {/* Filter Accordion */}
                 <Accordion type="single" collapsible className="w-full">
-                  {/* Category Filter */}
-                  {apiCategories.length > 0 && (
-                    <AccordionItem value="category" className="border-b">
-                      <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
-                        <span className="text-sm font-medium text-left">Category</span>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-0 py-3 pb-4">
-                        <div className="flex flex-col gap-3">
-                          {apiCategories.map((category) => (
-                            <div
-                              key={category.id}
-                              className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
-                            >
-                              <Checkbox
-                                id={`category-${category.id}`}
-                                checked={selectedCategoryId === category.id}
-                                onCheckedChange={() => toggleCategory(category.id)}
-                                className="border-2 w-5 h-5"
-                              />
-                              <label
-                                htmlFor={`category-${category.id}`}
-                                className="text-sm cursor-pointer flex-1 font-medium"
-                              >
-                                {category.title}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )}
-
                   {/* Subcategory Filter */}
                   {availableSubcategories.length > 0 && (
                     <AccordionItem value="subcategory" className="border-b">
@@ -548,8 +452,7 @@ export default function ProductsPage() {
                 </Accordion>
 
                 {/* Clear Filters Button */}
-                {(selectedCategoryId !== null ||
-                  selectedSubcategoryIds.length > 0 ||
+                {(selectedSubcategoryIds.length > 0 ||
                   priceRange[0] !== 0 ||
                   priceRange[1] !== MAX_PRICE ||
                   searchQuery !== "") && (
@@ -638,37 +541,6 @@ export default function ProductsPage() {
 
             {/* Filters - Same structure as desktop */}
             <Accordion type="single" collapsible className="w-full">
-              {apiCategories.length > 0 && (
-                <AccordionItem value="category" className="border-b">
-                  <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
-                    <span className="text-sm font-medium text-left">Category</span>
-                  </AccordionTrigger>
-                  <AccordionContent className="px-0 py-3 pb-4">
-                    <div className="flex flex-col gap-3">
-                      {apiCategories.map((category) => (
-                        <div
-                          key={category.id}
-                          className="flex items-center gap-3 p-2 rounded hover:bg-secondary/50 transition-colors"
-                        >
-                          <Checkbox
-                            id={`drawer-category-${category.id}`}
-                            checked={selectedCategoryId === category.id}
-                            onCheckedChange={() => toggleCategory(category.id)}
-                            className="border-2 w-5 h-5"
-                          />
-                          <label
-                            htmlFor={`drawer-category-${category.id}`}
-                            className="text-sm cursor-pointer flex-1 font-medium"
-                          >
-                            {category.title}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              )}
-
               {availableSubcategories.length > 0 && (
                 <AccordionItem value="subcategory" className="border-b">
                   <AccordionTrigger className="px-0 py-3 hover:no-underline hover:text-primary">
@@ -765,8 +637,7 @@ export default function ProductsPage() {
               </AccordionItem>
             </Accordion>
 
-            {(selectedCategoryId !== null ||
-              selectedSubcategoryIds.length > 0 ||
+            {(selectedSubcategoryIds.length > 0 ||
               priceRange[0] !== 0 ||
               priceRange[1] !== MAX_PRICE ||
               searchQuery !== "") && (
@@ -778,7 +649,6 @@ export default function ProductsPage() {
         </DrawerContent>
       </Drawer>
 
-      <Footer />
     </div>
   )
 }

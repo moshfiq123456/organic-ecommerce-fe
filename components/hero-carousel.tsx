@@ -103,7 +103,7 @@ export function HeroCarousel() {
   }, [autoPlay, page])
 
   return (
-    <section className="relative w-full overflow-hidden h-screen min-h-[580px] max-h-[900px]">
+    <section className="relative w-full overflow-hidden h-[calc(100vh+72px)] min-h-163 max-h-243">
 
       {/* ── Background slides with parallax ── */}
       <AnimatePresence initial={false} custom={dir}>

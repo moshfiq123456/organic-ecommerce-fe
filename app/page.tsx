@@ -5,7 +5,6 @@ import { useDispatch } from "react-redux"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Footer } from "@/components/footer"
 import { ArrowRight, Leaf, Heart, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { addToCart } from "@/slices/cartSlice"
@@ -46,8 +45,10 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <HeroCarousel />
+      {/* Hero Section — pulls up to sit behind transparent fixed header */}
+      <div className="-mt-18">
+        <HeroCarousel />
+      </div>
       {/* <section className="relative py-20 lg:py-32">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto text-center">
@@ -181,7 +182,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <Footer />
     </div>
   )
 }

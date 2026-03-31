@@ -1,6 +1,5 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Footer } from "@/components/footer"
 
 export default function NotFound() {
   return (
@@ -15,7 +14,6 @@ export default function NotFound() {
         </div>
       </div>
 
-      <Footer />
     </div>
   )
 }

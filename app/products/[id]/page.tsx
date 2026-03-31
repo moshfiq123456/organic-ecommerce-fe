@@ -1,25 +1,76 @@
+"use client"
+
+import { useState, useRef } from "react"
 import Link from "next/link"
-import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Footer } from "@/components/footer"
-import { ArrowLeft, ShoppingCart, Heart, Share2 } from "lucide-react"
-import { getProductById } from "@/lib/products"
+import { ArrowLeft, ShoppingCart, Heart, Share2, Loader2 } from "lucide-react"
+import { useGetProductByIdQuery, getImageUrl } from "@/api/productsApi"
+
+const ZOOM = 2
 
 interface ProductPageProps {
-  params: {
-    id: string
+  params: { id: string }
+}
+
+function ZoomableImage({ src, alt }: { src: string; alt: string }) {
+  const [origin, setOrigin] = useState("50% 50%")
+  const [hovered, setHovered] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!containerRef.current) return
+    const { left, top, width, height } = containerRef.current.getBoundingClientRect()
+    const x = ((e.clientX - left) / width) * 100
+    const y = ((e.clientY - top) / height) * 100
+    setOrigin(`${x}% ${y}%`)
   }
+
+  return (
+    <div
+      ref={containerRef}
+      className="aspect-square rounded-lg bg-secondary/30 overflow-hidden cursor-zoom-in select-none"
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <img
+        src={src}
+        alt={alt}
+        draggable={false}
+        className="w-full h-full object-cover"
+        style={{
+          transform: hovered ? `scale(${ZOOM})` : "scale(1)",
+          transformOrigin: origin,
+          transition: hovered ? "transform 0.1s ease-out" : "transform 0.3s ease-out",
+        }}
+      />
+    </div>
+  )
 }
 
 export default function ProductPage({ params }: ProductPageProps) {
   const productId = Number.parseInt(params.id)
-  const product = getProductById(productId)
 
-  if (!product) {
-    notFound()
+  const { data: product, isLoading, error } = useGetProductByIdQuery(productId)
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
+
+  if (error || !product) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-lg text-red-500">Product not found.</p>
+      </div>
+    )
+  }
+
+  console.log("product", product)
 
   return (
     <div className="min-h-screen bg-background">
@@ -34,34 +85,31 @@ export default function ProductPage({ params }: ProductPageProps) {
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-6xl mx-auto">
-          {/* Product Image */}
+          {/* Product Image with Zoom */}
           <div className="space-y-4">
-            <div className="aspect-square overflow-hidden rounded-lg bg-secondary/30">
-              <img
-                src={product.image || "/placeholder.svg"}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
+            <ZoomableImage
+              src={getImageUrl(product.image?.url || product.image?.thumbnailURL)}
+              alt={product.title}
+            />
           </div>
 
           {/* Product Details */}
           <div className="space-y-6">
             <div>
               <Badge variant="secondary" className="mb-3">
-                {product.category}
+                {product.subCategory?.category?.title}
               </Badge>
-              <h1 className="text-3xl md:text-4xl font-light text-foreground mb-4">{product.name}</h1>
-              <p className="text-2xl font-semibold text-primary mb-4">{product.price}</p>
-              <p className="text-lg text-muted-foreground leading-relaxed">{product.longDescription}</p>
+              <h1 className="text-3xl md:text-4xl font-light text-foreground mb-4">{product.title}</h1>
+              <p className="text-2xl font-semibold text-primary mb-4">৳{product.price}</p>
+              <p className="text-lg text-muted-foreground leading-relaxed">{product.description}</p>
             </div>
 
             {/* Action Buttons */}
             <div className="flex gap-3">
               <Link href="/order" className="flex-1">
-                <Button size="lg" className="w-full">
+                <Button size="lg" className="w-full" disabled={product.stockIn === 0}>
                   <ShoppingCart className="h-4 w-4 mr-2" />
-                  Add to Cart
+                  {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
                 </Button>
               </Link>
               <Button variant="outline" size="lg">
@@ -72,50 +120,33 @@ export default function ProductPage({ params }: ProductPageProps) {
               </Button>
             </div>
 
-            {/* Product Information */}
-            <div className="space-y-6 pt-6 border-t">
-              {/* Ingredients */}
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-semibold text-foreground mb-3">Key Ingredients</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {product.ingredients.map((ingredient, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {ingredient}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Benefits */}
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-semibold text-foreground mb-3">Benefits</h3>
-                  <ul className="space-y-2">
-                    {product.benefits.map((benefit, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-                        {benefit}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              {/* How to Use */}
-              <Card>
-                <CardContent className="p-6">
-                  <h3 className="font-semibold text-foreground mb-3">How to Use</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{product.howToUse}</p>
-                </CardContent>
-              </Card>
+            {/* Product Meta */}
+            <div className="space-y-3 pt-6 border-t text-sm text-muted-foreground">
+              <div className="flex justify-between">
+                <span>Category</span>
+                <span className="text-foreground font-medium">{product.subCategory?.category?.title}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Subcategory</span>
+                <span className="text-foreground font-medium">{product.subCategory?.title}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Stock</span>
+                <span className="text-foreground font-medium">{product.stockIn} available</span>
+              </div>
+              {product.preOrder && (
+                <div className="flex justify-between">
+                  <span>Pre-order</span>
+                  <span className="text-foreground font-medium">
+                    {product.preOrderTime} {product.preOrderTimeUnit}s
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      <Footer />
     </div>
   )
 }

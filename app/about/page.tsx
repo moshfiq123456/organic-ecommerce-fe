@@ -1,4 +1,3 @@
-import { Footer } from "@/components/footer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Leaf, Heart, Award, Users } from "lucide-react"
 
@@ -141,7 +140,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <Footer />
     </div>
   )
 }

@@ -21,6 +21,43 @@ export interface CreateOrderPayload {
   customerName: string
 }
 
+export interface TrackOrderParams {
+  orderId: string
+  phone: string
+}
+
+export interface OrderItem {
+  product: {
+    id: string
+    title: string
+    price: number
+    slug: string
+  }
+  quantity: number
+  price: number
+}
+
+export interface OrderTrackResponse {
+  id: string
+  orderItems: OrderItem[]
+  status: {
+    id: string
+    title: string
+    code: string
+  }
+  transactionId: string | null
+  customerName: string
+  phone: string
+  email: string
+  city: string
+  address: string
+  notes: string | null
+  totalAmount: number
+  paymentMethod: string
+  createdAt: string
+  updatedAt: string
+}
+
 export const ordersApi = createApi({
   reducerPath: "ordersApi",
   baseQuery: axiosBaseQuery({ baseUrl: BASE_URL }),
@@ -34,7 +71,13 @@ export const ordersApi = createApi({
       }),
       invalidatesTags: ["Orders"],
     }),
+    trackOrder: builder.query<OrderTrackResponse, TrackOrderParams>({
+      query: ({ orderId, phone }) => ({
+        url: "/api/orders/track",
+        params: { orderId, phone },
+      }),
+    }),
   }),
 })
 
-export const { useCreateOrderMutation } = ordersApi
+export const { useCreateOrderMutation, useTrackOrderQuery } = ordersApi

@@ -108,12 +108,19 @@ export const getImageUrl = (imagePath: string | undefined) => {
 // Helper function to build the where clause for filtering
 const buildWhereClause = (
   categoryId?: number,
-  subcategoryIds?: number[]
+  subcategoryIds?: number[],
+  q?: string,
+  categoryCode?: string
 ): any | undefined => {
   const and: any[] = [];
 
-  // Add category filter if provided
-  if (categoryId) {
+  if (categoryCode) {
+    and.push({
+      "subCategory.category.code": {
+        equals: categoryCode,
+      },
+    });
+  } else if (categoryId) {
     and.push({
       "subCategory.category.id": {
         equals: categoryId,
@@ -121,7 +128,6 @@ const buildWhereClause = (
     });
   }
 
-  // Add subcategory filter if provided
   if (subcategoryIds && subcategoryIds.length > 0) {
     and.push({
       "subCategory.id": {
@@ -130,8 +136,13 @@ const buildWhereClause = (
     });
   }
 
-  // Remove the availability filter - not queryable in your API
-  // If needed, filter on client-side instead
+  if (q) {
+    and.push({
+      title: {
+        like: q,
+      },
+    });
+  }
 
   return and.length > 0 ? { and } : undefined;
 };
@@ -149,23 +160,20 @@ export const productsApi = createApi({
         limit?: number;
         categoryId?: number;
         subcategoryIds?: number[];
+        q?: string;
+        categoryCode?: string;
       }
     >({
-      query: ({ page = 1, limit = 10, categoryId, subcategoryIds } = {}) => {
-        // Build the where clause based on provided filters
-        const where = buildWhereClause(categoryId, subcategoryIds);
+      query: ({ page = 1, limit = 10, categoryId, subcategoryIds, q, categoryCode } = {}) => {
+        const where = buildWhereClause(categoryId, subcategoryIds, q, categoryCode);
 
-        // Build query string if where clause exists
-        const queryString = where
-          ? qs.stringify({ where }, { encode: true })
-          : "";
+        const queryParams: Record<string, any> = { page, limit };
+        if (where) queryParams.where = where;
 
-        // Construct the URL with query string
-        const url = queryString ? `/api/products?${queryString}` : "/api/products";
+        const queryString = qs.stringify(queryParams, { encode: true });
 
         return {
-          url,
-          params: { page, limit },
+          url: `/api/products?${queryString}`,
         };
       },
       providesTags: ["Products"],
