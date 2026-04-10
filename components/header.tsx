@@ -361,9 +361,6 @@ export function Header() {
                 })}
               </nav>
 
-              {/* ── Search ── */}
-              <NavSearch isTransparent={isTransparent} />
-
               {/* ── Actions ── */}
               <motion.div
                 className="flex items-center gap-0.5"
@@ -371,6 +368,9 @@ export function Header() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
               >
+                {/* Search */}
+                <NavSearch isTransparent={isTransparent} />
+
                 {/* Cart button — opens cart drawer */}
                 <motion.button
                   onClick={() => setIsCartOpen(true)}
