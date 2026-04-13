@@ -8,6 +8,7 @@ export const axiosBaseQuery = ({ baseUrl }: { baseUrl: string }) => async ({ url
       method,
       data,
       params,
+      timeout: 15000,
     })
     return { data: result.data }
   } catch (axiosError: any) {

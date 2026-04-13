@@ -19,6 +19,7 @@ import {
   DrawerFooter,
   DrawerTitle,
 } from "@/components/ui/drawer"
+import { useSubdomain } from "@/context/SubdomainContext"
 
 function NavSearch({ isTransparent }: { isTransparent: boolean }) {
   const [open, setOpen] = useState(false)
@@ -170,6 +171,23 @@ function NavSearch({ isTransparent }: { isTransparent: boolean }) {
   )
 }
 
+const SUBDOMAIN_BRAND: Record<string, { name: string; logo: string; fontClass: string; color: string }> = {
+  "just-healthy": {
+    name: "Just Healthy",
+    logo: "/just-healthy.png",
+    fontClass: "font-(family-name:--font-lora)",
+    color: "#2D5A27",
+  },
+  "la-luminosite": {
+    name: "La Luminosité",
+    logo: "/la-luminosite.png",
+    fontClass: "font-(family-name:--font-cormorant)",
+    color: "#7B4F2E",
+  },
+}
+
+const DEFAULT_BRAND = SUBDOMAIN_BRAND["la-luminosite"]
+
 const TITLE_TO_HREF: Record<string, string> = {
   home: "/",
   products: "/products",
@@ -196,13 +214,9 @@ export function Header() {
   const [hoveredLink, setHoveredLink] = useState<string | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const [cartBounce, setCartBounce] = useState(false)
-  const [slug, setSlug] = useState<string | undefined>(undefined)
+  const slug = useSubdomain()
 
-  useEffect(() => {
-    setSlug(window.location.hostname.split(".")[0])
-  }, [])
-
-  const { data: mainMenuData } = useGetMainMenuQuery(slug!, { skip: !slug })
+  const { data: mainMenuData } = useGetMainMenuQuery(slug, { skip: !slug })
 
   useEffect(() => {
     if (mainMenuData) console.log("Main menu:", mainMenuData)
@@ -216,7 +230,8 @@ export function Header() {
       }))
     : FALLBACK_NAV
   const logoUrl = menuDoc?.logo?.url ?? null
-  const brandName = menuDoc?.subDomain?.title ?? "Pure Botanics"
+  const subdomainBrand = SUBDOMAIN_BRAND[slug] ?? DEFAULT_BRAND
+  const brandName = menuDoc?.subDomain?.title ?? subdomainBrand.name
 
   const pathname = usePathname()
   const dispatch = useDispatch()
@@ -300,13 +315,18 @@ export function Header() {
                         className="h-9 w-auto object-contain rounded-xl"
                       />
                     ) : (
-                      <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm">
-                        <Leaf className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
-                      </div>
+                      <img
+                        src={subdomainBrand.logo}
+                        alt={brandName}
+                        className={`h-12 w-auto object-contain transition-all duration-500 ${isTransparent ? "brightness-0 invert" : "mix-blend-multiply dark:mix-blend-screen dark:invert"}`}
+                      />
                     )}
                   </motion.div>
                   <div className="flex flex-col leading-none">
-                    <span className={`text-[15px] font-bold tracking-tight transition-colors duration-500 ${isTransparent ? "text-white" : "text-foreground"}`}>
+                    <span
+                      className={`${subdomainBrand.fontClass} text-[22px] font-semibold tracking-wide transition-colors duration-500 ${isTransparent ? "text-white" : ""}`}
+                      style={!isTransparent ? { color: subdomainBrand.color } : undefined}
+                    >
                       {brandName}
                     </span>
                   </div>

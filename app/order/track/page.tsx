@@ -30,19 +30,19 @@ function formatDate(iso: string) {
 }
 
 export default function OrderTrackPage() {
-  const [orderId, setOrderId] = useState("")
+  const [orderNumber, setOrderNumber] = useState("")
   const [phone, setPhone] = useState("")
-  const [submitted, setSubmitted] = useState<{ orderId: string; phone: string } | null>(null)
+  const [submitted, setSubmitted] = useState<{ orderNumber: string; phone: string } | null>(null)
 
   const { data, isFetching, isError } = useTrackOrderQuery(
-    submitted ?? { orderId: "", phone: "" },
+    submitted ?? { orderNumber: "", phone: "" },
     { skip: !submitted }
   )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!orderId.trim() || !phone.trim()) return
-    setSubmitted({ orderId: orderId.trim(), phone: phone.trim() })
+    if (!orderNumber.trim() || !phone.trim()) return
+    setSubmitted({ orderNumber: orderNumber.trim(), phone: phone.trim() })
   }
 
   const statusCode = data?.status?.code ?? ""
@@ -66,13 +66,13 @@ export default function OrderTrackPage() {
         <form onSubmit={handleSubmit} className="bg-background rounded-2xl border border-border p-6 shadow-sm space-y-4">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-              <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order ID
+              <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order Number
             </label>
             <input
               type="text"
-              value={orderId}
-              onChange={(e) => setOrderId(e.target.value)}
-              placeholder="e.g. abc123"
+              value={orderNumber}
+              onChange={(e) => setOrderNumber(e.target.value)}
+              placeholder="e.g. 748291836472"
               className="w-full px-4 py-2.5 rounded-xl border border-border bg-secondary/30 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
             />
           </div>

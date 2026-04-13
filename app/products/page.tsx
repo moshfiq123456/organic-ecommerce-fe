@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
-import { Search, Filter, ShoppingCart, Loader2, Eye } from "lucide-react"
+import { Search, Filter, ShoppingCart, Loader2, Eye, X, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { businesses } from "@/lib/products"
+import { useSubdomain } from "@/context/SubdomainContext"
 import { useDispatch } from "react-redux"
 import { AppDispatch } from "@/store/store"
-import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
+import { useGetProductsQuery, useGetProductByIdQuery, getImageUrl } from "@/api/productsApi"
 import { addToCart } from "@/slices/cartSlice"
 
 const MAX_PRICE = 1000
@@ -25,12 +26,173 @@ const cardVariants = {
   exit:    { opacity: 0, scale: 0.93, transition: { duration: 0.25 } },
 }
 
+function QuickViewModal({ productId, onClose, onAddToCart }: { productId: number; onClose: () => void; onAddToCart: (p: any) => void }) {
+  const { data: product, isLoading } = useGetProductByIdQuery(productId)
+  const [selectedImage, setSelectedImage] = useState(0)
+  const [qty, setQty] = useState(1)
+
+  const allImages = product
+    ? (product.images ?? []).length > 0
+      ? (product.images ?? []).map((i: any) => i.image)
+      : [product.image]
+    : []
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    document.addEventListener("keydown", onKey)
+    document.body.style.overflow = "hidden"
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = "" }
+  }, [onClose])
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 20 }}
+          transition={{ type: "spring", stiffness: 300, damping: 28 }}
+          className="bg-background rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative"
+        >
+          {/* Close */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          {isLoading || !product ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+              {/* Gallery */}
+              <div className="p-5 flex flex-col gap-3">
+                <div className="aspect-square rounded-xl overflow-hidden bg-secondary/20 relative">
+                  <img
+                    src={getImageUrl(allImages[selectedImage]?.url)}
+                    alt={product.title}
+                    className="w-full h-full object-cover"
+                  />
+                  {allImages.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setSelectedImage((i) => (i - 1 + allImages.length) % allImages.length)}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setSelectedImage((i) => (i + 1) % allImages.length)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+                {allImages.length > 1 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {allImages.map((img: any, i: number) => (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedImage(i)}
+                        className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors shrink-0 ${i === selectedImage ? "border-primary" : "border-transparent hover:border-border"}`}
+                      >
+                        <img src={getImageUrl(img?.url)} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Details */}
+              <div className="p-5 flex flex-col gap-4 border-t md:border-t-0 md:border-l border-border">
+                <div>
+                  <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                    {product.subCategory?.title}
+                  </span>
+                  <h2 className="text-xl font-semibold text-foreground mt-2 mb-1">{product.title}</h2>
+                  {product.tagline && (
+                    <p className="text-xs text-muted-foreground">{product.tagline.replace(/_/g, " ")}</p>
+                  )}
+                </div>
+
+                {/* Price */}
+                <div className="flex items-center gap-2">
+                  {product.onSale && product.salePrice ? (
+                    <>
+                      <span className="text-2xl font-bold text-primary">৳{product.salePrice}</span>
+                      <span className="text-base text-muted-foreground line-through">৳{product.price}</span>
+                      <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-semibold">
+                        {product.discountType === "percentage" ? `${product.discountValue}% OFF` : `৳${product.discountValue} OFF`}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-2xl font-bold text-primary">৳{product.price}</span>
+                  )}
+                </div>
+
+                {/* Stock */}
+                <span className={`text-xs w-fit px-2.5 py-1 rounded-full font-medium ${product.stockIn > 0 ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>
+                  {product.stockIn > 0 ? `${product.stockIn} in stock` : "Out of stock"}
+                </span>
+
+                <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
+
+                {/* Quantity */}
+                {product.stockIn > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground">Qty</span>
+                    <div className="flex items-center border border-border rounded-lg overflow-hidden">
+                      <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors text-lg">−</button>
+                      <span className="w-10 text-center text-sm font-medium">{qty}</span>
+                      <button onClick={() => setQty((q) => Math.min(product.stockIn, q + 1))} className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors text-lg">+</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex flex-col gap-2 mt-auto pt-2">
+                  <Button
+                    className="w-full gap-2"
+                    disabled={product.stockIn === 0}
+                    onClick={() => { onAddToCart({ ...product, quantity: qty }); onClose() }}
+                  >
+                    <ShoppingCart className="h-4 w-4" />
+                    {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
+                  </Button>
+                  <Link href={`/products/${product.id}`} onClick={onClose}>
+                    <Button variant="outline" className="w-full gap-2 bg-transparent">
+                      View Full Details <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 function ProductCard({
   product,
   onAddToCart,
+  onQuickView,
 }: {
   product: ApiProduct
   onAddToCart: (p: ApiProduct) => void
+  onQuickView: (id: number) => void
 }) {
   const [hovered, setHovered] = useState(false)
 
@@ -50,7 +212,7 @@ function ProductCard({
       {/* Image */}
       <div className="relative aspect-square overflow-hidden bg-secondary/20 shrink-0">
         <motion.img
-          src={product.image.thumbnailURL || product.image.url || "/placeholder.svg"}
+          src={getImageUrl(product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url)}
           alt={product.title}
           animate={{ scale: hovered ? 1.08 : 1 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -73,11 +235,14 @@ function ProductCard({
                 exit={{ y: 8, opacity: 0 }}
                 transition={{ delay: 0.04, duration: 0.2 }}
               >
-                <Link href={`/products/${product.id}`}>
-                  <Button size="sm" variant="secondary" className="gap-1.5 text-xs shadow-lg rounded-full px-4">
-                    <Eye className="h-3.5 w-3.5" /> Quick View
-                  </Button>
-                </Link>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-1.5 text-xs shadow-lg rounded-full px-4"
+                  onClick={(e) => { e.preventDefault(); onQuickView(product.id) }}
+                >
+                  <Eye className="h-3.5 w-3.5" /> Quick View
+                </Button>
               </motion.div>
             </motion.div>
           )}
@@ -89,31 +254,51 @@ function ProductCard({
             Out of Stock
           </span>
         )}
+        {product.onSale && product.stockIn > 0 && (
+          <span className="absolute top-2.5 left-2.5 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
+            Sale
+          </span>
+        )}
         {product.preOrder && (
-          <span className="absolute top-2.5 left-2.5 bg-yellow-500/90 text-white text-[10px] px-2 py-0.5 rounded-full">
+          <span className={`absolute text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/90 text-white ${product.onSale ? "top-8 left-2.5" : "top-2.5 left-2.5"}`}>
             Pre-order · {product.preOrderTime} {product.preOrderTimeUnit}s
           </span>
         )}
       </div>
 
       {/* Content */}
-      <div className="p-4 flex flex-col flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+      <div className="p-2.5 sm:p-4 flex flex-col flex-1">
+        <div className="flex items-start justify-between gap-1 mb-2">
+          <span className="text-[10px] sm:text-xs font-medium text-primary bg-primary/10 px-1.5 sm:px-2 py-0.5 rounded-full truncate max-w-[60%]">
             {product.subCategory.title}
           </span>
-          <span className="text-sm font-semibold text-primary">৳{product.price}</span>
+          <div className="flex flex-col items-end shrink-0">
+            {product.onSale && product.salePrice ? (
+              <>
+                <span className="text-[10px] text-muted-foreground line-through leading-none">৳{product.price}</span>
+                <span className="text-xs sm:text-sm font-semibold text-primary">৳{product.salePrice}</span>
+              </>
+            ) : (
+              <span className="text-xs sm:text-sm font-semibold text-primary">৳{product.price}</span>
+            )}
+          </div>
         </div>
 
-        <h3 className="font-semibold text-foreground text-sm mb-1.5 line-clamp-1">{product.title}</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
+        <h3 className="font-semibold text-foreground text-xs sm:text-sm mb-1 line-clamp-2">{product.title}</h3>
+        <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
           {product.description || "No description available"}
         </p>
 
-        <div className="flex gap-2 mt-4">
+        <div className="flex items-center gap-1.5 mt-1.5">
+          <span className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-medium ${product.stockIn > 0 ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>
+            {product.stockIn > 0 ? `${product.stockIn} in stock` : "Out of stock"}
+          </span>
+        </div>
+
+        <div className="flex gap-1.5 sm:gap-2 mt-3">
           <Link href={`/products/${product.id}`} className="flex-1">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-              <Button variant="outline" size="sm" className="w-full bg-transparent text-xs rounded-xl">
+              <Button variant="outline" size="sm" className="w-full bg-transparent text-[10px] sm:text-xs rounded-xl px-1 sm:px-3">
                 Details
               </Button>
             </motion.div>
@@ -122,11 +307,11 @@ function ProductCard({
             <Button
               size="sm"
               onClick={() => onAddToCart(product)}
-              className="gap-1 text-xs w-full rounded-xl"
+              className="gap-0.5 sm:gap-1 text-[10px] sm:text-xs w-full rounded-xl px-1 sm:px-3"
               disabled={product.stockIn === 0}
             >
-              <ShoppingCart className="h-3 w-3" />
-              {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
+              <ShoppingCart className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
+              <span className="truncate">{product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}</span>
             </Button>
           </motion.div>
         </div>
@@ -178,22 +363,26 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [selectedBusiness, setSelectedBusiness] = useState<string | null>(null)
-  const [slug, setSlug] = useState<string | undefined>(undefined)
-
-  // Read tenant slug from hostname
-  useEffect(() => {
-    setSlug(window.location.hostname.split(".")[0])
-  }, [])
+  const [quickViewId, setQuickViewId] = useState<number | null>(null)
+  const slug = useSubdomain()
 
   // Debounce search query — 400ms
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery)
+  const [debouncedPrice, setDebouncedPrice] = useState<[number, number]>(priceRange)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const priceDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
     debounceTimer.current = setTimeout(() => setDebouncedSearch(searchQuery), 400)
     return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current) }
   }, [searchQuery])
+
+  useEffect(() => {
+    if (priceDebounceTimer.current) clearTimeout(priceDebounceTimer.current)
+    priceDebounceTimer.current = setTimeout(() => setDebouncedPrice(priceRange), 600)
+    return () => { if (priceDebounceTimer.current) clearTimeout(priceDebounceTimer.current) }
+  }, [priceRange])
 
   // Fetch products — filtered by tenant slug via subCategory.category.code
   const { data: productsData, error, isLoading } = useGetProductsQuery(
@@ -203,6 +392,8 @@ export default function ProductsPage() {
       categoryCode: slug,
       subcategoryIds: selectedSubcategoryIds.length > 0 ? selectedSubcategoryIds : undefined,
       q: debouncedSearch || undefined,
+      minPrice: debouncedPrice[0] > 0 ? debouncedPrice[0] : undefined,
+      maxPrice: debouncedPrice[1] < MAX_PRICE ? debouncedPrice[1] : undefined,
     },
     { skip: !slug }
   )
@@ -226,13 +417,7 @@ export default function ProductsPage() {
     if (subcategoryParam) setSelectedSubcategoryIds([Number(subcategoryParam)])
   }, [searchParams])
 
-  // Filter products client-side by price only (search is handled by the API)
-  const filteredProducts = useMemo(() => {
-    if (!productsData?.docs) return []
-    return productsData.docs.filter(
-      (product) => product.price >= priceRange[0] && product.price <= priceRange[1]
-    )
-  }, [productsData, priceRange])
+  const filteredProducts = productsData?.docs ?? []
 
   const toggleSubcategory = (subcategoryId: number) => {
     setSelectedSubcategoryIds((prev) =>
@@ -253,11 +438,14 @@ export default function ProductsPage() {
     name?: string
     price: number
     image?: { url?: string; thumbnailURL?: string | null } | string | null
+    images?: { image: { url: string } }[]
   }
 
   const handleAddToCart = (product: CartProductSource) => {
     const imageUrl =
-      typeof product.image === "string" ? product.image : product.image?.thumbnailURL || product.image?.url
+      typeof product.image === "string"
+        ? product.image
+        : product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url
 
     dispatch(
       addToCart({
@@ -297,6 +485,15 @@ export default function ProductsPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Quick View Modal */}
+      {quickViewId !== null && (
+        <QuickViewModal
+          productId={quickViewId}
+          onClose={() => setQuickViewId(null)}
+          onAddToCart={handleAddToCart}
+        />
+      )}
+
       {/* Hero Section */}
       <section className="py-16 bg-secondary/30">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -328,7 +525,7 @@ export default function ProductsPage() {
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Sidebar - Filters (Desktop Only) */}
             <div className="hidden lg:block lg:col-span-1">
-              <div className="sticky top-4">
+              <div className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
                 {/* Search Bar */}
                 <div className="mb-6">
                   <div className="relative">
@@ -494,13 +691,14 @@ export default function ProductsPage() {
                   </Button>
                 </motion.div>
               ) : (
-                <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <motion.div layout className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                   <AnimatePresence mode="popLayout">
                     {filteredProducts.map((product) => (
                       <ProductCard
                         key={product.id}
                         product={product}
                         onAddToCart={handleAddToCart}
+                        onQuickView={(id) => setQuickViewId(id)}
                       />
                     ))}
                   </AnimatePresence>

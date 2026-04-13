@@ -14,6 +14,7 @@ export interface CreateOrderPayload {
   paymentMethod: string
   transactionId: string | null
   phone: string
+  email: string
   city: string
   address: string
   status: number
@@ -22,7 +23,7 @@ export interface CreateOrderPayload {
 }
 
 export interface TrackOrderParams {
-  orderId: string
+  orderNumber: string
   phone: string
 }
 
@@ -72,9 +73,9 @@ export const ordersApi = createApi({
       invalidatesTags: ["Orders"],
     }),
     trackOrder: builder.query<OrderTrackResponse, TrackOrderParams>({
-      query: ({ orderId, phone }) => ({
+      query: ({ orderNumber, phone }) => ({
         url: "/api/orders/track",
-        params: { orderId, phone },
+        params: { orderNumber, phone },
       }),
     }),
   }),

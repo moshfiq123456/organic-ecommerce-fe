@@ -53,6 +53,16 @@ export interface CategoriesResponse {
 const PAYLOAD_URL =
   process.env.NEXT_PUBLIC_PAYLOAD_URL || "http://localhost:3000";
 
+export interface SubCategoriesResponse {
+  docs: SubCategory[];
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  limit: number;
+  page: number;
+  totalDocs: number;
+  totalPages: number;
+}
+
 export const categoriesApi = createApi({
   reducerPath: "categoriesApi",
   baseQuery: axiosBaseQuery({ baseUrl: PAYLOAD_URL }),
@@ -75,9 +85,18 @@ export const categoriesApi = createApi({
       query: (id) => ({
         url: `/api/categories/${id}`,
       }),
-      providesTags: (_result, _error, id) => [
-        { type: "Categories", id },
-      ],
+      providesTags: (_result, _error, id) => [{ type: "Categories", id }],
+    }),
+
+    /** Get subcategories filtered by category code */
+    getSubCategories: builder.query<SubCategoriesResponse, { categoryCode?: string; limit?: number }>({
+      query: ({ categoryCode, limit = 100 } = {}) => ({
+        url: "/api/sub-categories",
+        params: {
+          limit,
+          ...(categoryCode ? { "where[category.code][equals]": categoryCode } : {}),
+        },
+      }),
     }),
   }),
 });
@@ -85,4 +104,5 @@ export const categoriesApi = createApi({
 export const {
   useGetCategoriesQuery,
   useGetCategoryByIdQuery,
+  useGetSubCategoriesQuery,
 } = categoriesApi;

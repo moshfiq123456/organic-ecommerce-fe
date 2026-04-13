@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSelector, useDispatch } from "react-redux"
 import { RootState, AppDispatch } from "@/store/store"
 
@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Minus, Plus, X, Loader2, AlertCircle, ShoppingBag, Truck } from "lucide-react"
-import { removeFromCart, updateQuantity } from "@/slices/cartSlice"
+import { Minus, Plus, X, Loader2, AlertCircle, ShoppingBag, Truck, CheckCircle2, Package, Phone, MapPin, Copy, Check } from "lucide-react"
+import { removeFromCart, updateQuantity, clearCart } from "@/slices/cartSlice"
 import { useCreateOrderMutation } from "@/api/orderApi"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
@@ -28,6 +28,147 @@ const errorVariants = {
   hidden: { opacity: 0, height: 0, marginTop: 0 },
   visible: { opacity: 1, height: "auto", marginTop: 4, transition: { duration: 0.2 } },
   exit:   { opacity: 0, height: 0, marginTop: 0, transition: { duration: 0.15 } },
+}
+
+// ─── Order Success Modal ────────────────────────────────────────────────────────
+
+function OrderSuccessModal({ order, onClose }: { order: any; onClose: () => void }) {
+  const [copied, setCopied] = useState(false)
+  const doc = order?.doc ?? order
+
+  const copyOrderNumber = () => {
+    navigator.clipboard.writeText(doc.orderNumber)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    document.addEventListener("keydown", onKey)
+    document.body.style.overflow = "hidden"
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = "" }
+  }, [onClose])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 24 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 24 }}
+        transition={{ type: "spring", stiffness: 300, damping: 26 }}
+        className="bg-background rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+      >
+        {/* Header */}
+        <div className="bg-primary/10 px-6 pt-8 pb-6 text-center relative">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-background/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.15, type: "spring", stiffness: 260, damping: 20 }}
+            className="w-16 h-16 rounded-full bg-green-500/15 flex items-center justify-center mx-auto mb-4"
+          >
+            <CheckCircle2 className="h-9 w-9 text-green-500" />
+          </motion.div>
+          <h2 className="text-xl font-semibold text-foreground mb-1">Order Placed!</h2>
+          <p className="text-sm text-muted-foreground">Thank you! We'll reach out to confirm delivery.</p>
+        </div>
+
+        {/* Order Details */}
+        <div className="px-6 py-5 space-y-4">
+
+          {/* Order Number */}
+          <div className="flex items-center justify-between p-3 bg-secondary/40 rounded-xl">
+            <div>
+              <p className="text-xs text-muted-foreground mb-0.5">Order Number</p>
+              <p className="text-sm font-semibold text-foreground font-mono">{doc.orderNumber}</p>
+            </div>
+            <button
+              onClick={copyOrderNumber}
+              className="w-8 h-8 rounded-lg bg-background flex items-center justify-center text-muted-foreground hover:text-primary transition-colors border border-border"
+              aria-label="Copy order number"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+
+          {/* Info rows */}
+          <div className="space-y-2.5 text-sm">
+            {doc.customerName && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Customer</span>
+                <span className="font-medium text-foreground">{doc.customerName}</span>
+              </div>
+            )}
+            {doc.phone && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> Phone</span>
+                <span className="font-medium text-foreground">{doc.phone}</span>
+              </div>
+            )}
+            {doc.address && (
+              <div className="flex justify-between items-start">
+                <span className="text-muted-foreground flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Address</span>
+                <span className="font-medium text-foreground text-right max-w-[60%]">{doc.address}{doc.city ? `, ${doc.city}` : ""}</span>
+              </div>
+            )}
+            {doc.paymentMethod && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Payment</span>
+                <span className="font-medium text-foreground">{doc.paymentMethod}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Order Items */}
+          {doc.orderItems?.length > 0 && (
+            <div className="border-t pt-3">
+              <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5"><Package className="h-3.5 w-3.5" /> Items</p>
+              <div className="space-y-1.5">
+                {doc.orderItems.map((item: any, i: number) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span className="text-foreground truncate max-w-[70%]">
+                      {item.product?.title ?? `Product #${item.product}`}
+                      <span className="text-muted-foreground ml-1">× {item.quantity}</span>
+                    </span>
+                    {item.price && <span className="text-primary font-medium shrink-0">৳{item.price}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Total */}
+          {doc.totalAmount != null && (
+            <div className="flex justify-between items-center border-t pt-3">
+              <span className="font-semibold text-foreground">Total</span>
+              <span className="text-lg font-bold text-primary">৳{doc.totalAmount}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-6 flex gap-3">
+          <Link href="/order/track" className="flex-1" onClick={onClose}>
+            <Button variant="outline" className="w-full bg-transparent text-sm">Track Order</Button>
+          </Link>
+          <Link href="/products" className="flex-1" onClick={onClose}>
+            <Button className="w-full text-sm">Continue Shopping</Button>
+          </Link>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -50,7 +191,8 @@ export default function OrderPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState(false)
-  const [shake, setShake]   = useState(false)
+  const [shake, setShake] = useState(false)
+  const [successOrder, setSuccessOrder] = useState<any>(null)
 
   // ─── Validation ──────────────────────────────────────────────────────────────
 
@@ -138,19 +280,18 @@ export default function OrderPage() {
       paymentMethod: formData.paymentMethod,
       transactionId: null,
       phone: formData.phone,
+      email: formData.email,
       city: formData.city,
       address: formData.address,
-      status: 2,
+      status: 1,
       notes: formData.notes || null,
       customerName: `${formData.firstName} ${formData.lastName}`.trim(),
     }
 
     try {
       const res = await createOrder(payload).unwrap()
-      console.log("ORDER SUCCESS ✅", res)
-      toast.success("Order placed!", {
-        description: "We'll reach out shortly to confirm your delivery.",
-      })
+      setSuccessOrder(res)
+      dispatch(clearCart())
     } catch (error) {
       console.error("ORDER FAILED ❌", error)
       toast.error("Failed to place order", {
@@ -191,6 +332,12 @@ export default function OrderPage() {
   // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
+    <>
+    <AnimatePresence>
+      {successOrder && (
+        <OrderSuccessModal order={successOrder} onClose={() => setSuccessOrder(null)} />
+      )}
+    </AnimatePresence>
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="max-w-6xl mx-auto">
@@ -458,7 +605,7 @@ export default function OrderPage() {
                                 />
                                 <div className="flex-1 min-w-0">
                                   <h3 className="text-sm font-medium text-foreground truncate">{item.name}</h3>
-                                  <p className="text-xs text-muted-foreground mt-0.5">${item.price.toFixed(2)} each</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">৳{item.price.toFixed(2)} each</p>
                                 </div>
 
                                 {/* Quantity controls */}
@@ -500,12 +647,12 @@ export default function OrderPage() {
                         <motion.div layout className="pt-4 mt-1 border-t border-border space-y-2.5">
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Subtotal</span>
-                            <span className="font-medium">${subtotal.toFixed(2)}</span>
+                            <span className="font-medium">৳{subtotal.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Shipping</span>
                             <span className={`font-medium ${shipping === 0 ? "text-green-600 dark:text-green-400" : ""}`}>
-                              {shipping === 0 ? "Free" : `$${shipping.toFixed(2)}`}
+                              {shipping === 0 ? "Free" : `৳${shipping.toFixed(2)}`}
                             </span>
                           </div>
 
@@ -520,7 +667,7 @@ export default function OrderPage() {
                               >
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-md px-2.5 py-1.5">
                                   <Truck className="h-3 w-3 shrink-0" />
-                                  Add ${(50 - subtotal).toFixed(2)} more for free shipping
+                                  Add ৳{(50 - subtotal).toFixed(2)} more for free shipping
                                 </div>
                               </motion.div>
                             )}
@@ -528,7 +675,7 @@ export default function OrderPage() {
 
                           <div className="flex justify-between text-base font-semibold pt-2 border-t border-border">
                             <span>Total</span>
-                            <span>${total.toFixed(2)}</span>
+                            <span>৳{total.toFixed(2)}</span>
                           </div>
                         </motion.div>
                       </motion.div>
@@ -553,5 +700,6 @@ export default function OrderPage() {
       </div>
 
     </div>
+    </>
   )
 }

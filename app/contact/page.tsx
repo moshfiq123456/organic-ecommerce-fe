@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,28 +8,47 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Mail, Phone, MapPin, Clock } from "lucide-react"
+import { useSubmitContactMutation } from "@/api/contactApi"
+import { useGetContactInfoQuery } from "@/api/contactInfoApi"
+import { useSubdomain } from "@/context/SubdomainContext"
+import { toast } from "sonner"
 
 export default function ContactPage() {
+  const slug = useSubdomain()
+  const [submitContact, { isLoading }] = useSubmitContactMutation()
+  const { data: contactInfoData } = useGetContactInfoQuery(slug, { skip: !slug })
+  const info = contactInfoData?.docs?.[0]
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    subject: "",
+    phone: "",
     message: "",
   })
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
+    setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle form submission
-    alert("Thank you for your message! We will get back to you soon.")
-    setFormData({ name: "", email: "", subject: "", message: "" })
+    try {
+      await submitContact({
+        title: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        message: formData.message,
+        subDomain: slug,
+      }).unwrap()
+      toast.success("Message sent! We'll get back to you soon.")
+      setFormData({ name: "", email: "", phone: "", message: "" })
+    } catch {
+      toast.error("Something went wrong. Please try again.")
+    }
   }
+
+  // Submit disabled if both email AND phone are missing, or message is empty
+  const isDisabled = (!formData.email.trim() && !formData.phone.trim()) || !formData.message.trim() || isLoading
 
   return (
     <div className="min-h-screen bg-background">
@@ -60,34 +78,46 @@ export default function ContactPage() {
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
                       <Label htmlFor="name">Name</Label>
-                      <Input id="name" name="name" value={formData.name} onChange={handleInputChange} required />
+                      <Input
+                        id="name"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        required
+                      />
                     </div>
 
                     <div>
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">
+                        Email <span className="text-muted-foreground text-xs">(required if no phone)</span>
+                      </Label>
                       <Input
                         id="email"
                         name="email"
                         type="email"
                         value={formData.email}
                         onChange={handleInputChange}
-                        required
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="subject">Subject</Label>
+                      <Label htmlFor="phone">
+                        Phone <span className="text-muted-foreground text-xs">(required if no email)</span>
+                      </Label>
                       <Input
-                        id="subject"
-                        name="subject"
-                        value={formData.subject}
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        value={formData.phone}
                         onChange={handleInputChange}
-                        required
+                        placeholder="+1 (555) 000-0000"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="message">Message</Label>
+                      <Label htmlFor="message">
+                        Message <span className="text-destructive text-xs">*</span>
+                      </Label>
                       <Textarea
                         id="message"
                         name="message"
@@ -99,8 +129,8 @@ export default function ContactPage() {
                       />
                     </div>
 
-                    <Button type="submit" size="lg" className="w-full">
-                      Send Message
+                    <Button type="submit" size="lg" className="w-full" disabled={isDisabled}>
+                      {isLoading ? "Sending..." : "Send Message"}
                     </Button>
                   </form>
                 </CardContent>
@@ -113,59 +143,60 @@ export default function ContactPage() {
                     <CardTitle>Contact Information</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="flex items-start space-x-4">
-                      <div className="flex-shrink-0">
-                        <Mail className="h-6 w-6 text-primary" />
+                    {/* Emails */}
+                    {info?.emails?.length ? (
+                      <div className="flex items-start space-x-4">
+                        <div className="shrink-0"><Mail className="h-6 w-6 text-primary" /></div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">Email</h3>
+                          <p className="text-muted-foreground whitespace-pre-line">
+                            {info.emails.map(({ email }, i) => email + (i < info.emails.length - 1 ? ",\n" : "")).join("")}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Email</h3>
-                        <p className="text-muted-foreground">hello@purebotanics.com</p>
-                        <p className="text-muted-foreground">support@purebotanics.com</p>
-                      </div>
-                    </div>
+                    ) : null}
 
-                    <div className="flex items-start space-x-4">
-                      <div className="flex-shrink-0">
-                        <Phone className="h-6 w-6 text-primary" />
+                    {/* Phones */}
+                    {info?.phones?.length ? (
+                      <div className="flex items-start space-x-4">
+                        <div className="shrink-0"><Phone className="h-6 w-6 text-primary" /></div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">Phone</h3>
+                          <p className="text-muted-foreground whitespace-pre-line">
+                            {info.phones.map(({ phone }, i) => phone + (i < info.phones.length - 1 ? ",\n" : "")).join("")}
+                          </p>
+                          {info.phones[0]?.label && (
+                            <p className="text-sm text-muted-foreground">{info.phones[0].label}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Phone</h3>
-                        <p className="text-muted-foreground">+1 (555) 123-4567</p>
-                        <p className="text-sm text-muted-foreground">Mon-Fri, 9am-6pm EST</p>
-                      </div>
-                    </div>
+                    ) : null}
 
-                    <div className="flex items-start space-x-4">
-                      <div className="flex-shrink-0">
-                        <MapPin className="h-6 w-6 text-primary" />
+                    {/* Address */}
+                    {info?.address ? (
+                      <div className="flex items-start space-x-4">
+                        <div className="shrink-0"><MapPin className="h-6 w-6 text-primary" /></div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">Address</h3>
+                          <p className="text-muted-foreground whitespace-pre-line">{info.address}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Address</h3>
-                        <p className="text-muted-foreground">
-                          123 Botanical Avenue
-                          <br />
-                          Natural Beauty District
-                          <br />
-                          Green City, GC 12345
-                        </p>
-                      </div>
-                    </div>
+                    ) : null}
 
-                    <div className="flex items-start space-x-4">
-                      <div className="flex-shrink-0">
-                        <Clock className="h-6 w-6 text-primary" />
+                    {/* Business Hours */}
+                    {info?.businessHours?.length ? (
+                      <div className="flex items-start space-x-4">
+                        <div className="shrink-0"><Clock className="h-6 w-6 text-primary" /></div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">Business Hours</h3>
+                          {info.businessHours.map(({ day, hours, id }) => (
+                            <p key={id} className="text-muted-foreground">
+                              {day}: {hours}
+                            </p>
+                          ))}
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Business Hours</h3>
-                        <p className="text-muted-foreground">
-                          Monday - Friday: 9:00 AM - 6:00 PM
-                          <br />
-                          Saturday: 10:00 AM - 4:00 PM
-                          <br />
-                          Sunday: Closed
-                        </p>
-                      </div>
-                    </div>
+                    ) : null}
                   </CardContent>
                 </Card>
 
@@ -200,7 +231,6 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
-
     </div>
   )
 }

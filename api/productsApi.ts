@@ -37,18 +37,17 @@ export interface Product {
     width: number;
     height: number;
     sizes: {
-      thumbnail: {
-        url: string;
-        width: number;
-        height: number;
-      };
-      card: {
-        url: string;
-        width: number;
-        height: number;
-      };
+      thumbnail: { url: string; width: number; height: number };
+      card: { url: string; width: number; height: number };
     };
   };
+  images: { image: { id: number; url: string; filename: string }; id: string }[];
+  onSale: boolean;
+  discountType: "percentage" | "fixed";
+  discountValue: number;
+  salePrice: number;
+  isAvailable: boolean;
+  tagline: string | null;
   ingredients: string | null;
   nutrition: string | null;
   purity: string;
@@ -110,38 +109,42 @@ const buildWhereClause = (
   categoryId?: number,
   subcategoryIds?: number[],
   q?: string,
-  categoryCode?: string
+  categoryCode?: string,
+  minPrice?: number,
+  maxPrice?: number,
+  productType?: string,
+  onSale?: boolean,
 ): any | undefined => {
   const and: any[] = [];
 
   if (categoryCode) {
-    and.push({
-      "subCategory.category.code": {
-        equals: categoryCode,
-      },
-    });
+    and.push({ "subCategory.category.code": { equals: categoryCode } });
   } else if (categoryId) {
-    and.push({
-      "subCategory.category.id": {
-        equals: categoryId,
-      },
-    });
+    and.push({ "subCategory.category.id": { equals: categoryId } });
   }
 
   if (subcategoryIds && subcategoryIds.length > 0) {
-    and.push({
-      "subCategory.id": {
-        in: subcategoryIds,
-      },
-    });
+    and.push({ "subCategory.id": { in: subcategoryIds } });
   }
 
   if (q) {
-    and.push({
-      title: {
-        like: q,
-      },
-    });
+    and.push({ title: { like: q } });
+  }
+
+  if (minPrice !== undefined) {
+    and.push({ price: { greater_than_equal: minPrice } });
+  }
+
+  if (maxPrice !== undefined) {
+    and.push({ price: { less_than_equal: maxPrice } });
+  }
+
+  if (productType) {
+    and.push({ productType: { equals: productType } });
+  }
+
+  if (onSale !== undefined) {
+    and.push({ onSale: { equals: onSale } });
   }
 
   return and.length > 0 ? { and } : undefined;
@@ -162,10 +165,14 @@ export const productsApi = createApi({
         subcategoryIds?: number[];
         q?: string;
         categoryCode?: string;
+        minPrice?: number;
+        maxPrice?: number;
+        productType?: string;
+        onSale?: boolean;
       }
     >({
-      query: ({ page = 1, limit = 10, categoryId, subcategoryIds, q, categoryCode } = {}) => {
-        const where = buildWhereClause(categoryId, subcategoryIds, q, categoryCode);
+      query: ({ page = 1, limit = 10, categoryId, subcategoryIds, q, categoryCode, minPrice, maxPrice, productType, onSale } = {}) => {
+        const where = buildWhereClause(categoryId, subcategoryIds, q, categoryCode, minPrice, maxPrice, productType, onSale);
 
         const queryParams: Record<string, any> = { page, limit };
         if (where) queryParams.where = where;
@@ -185,7 +192,33 @@ export const productsApi = createApi({
       }),
       providesTags: (_result, _error, id) => [{ type: "Products", id }],
     }),
+
+    getSuggestedProducts: builder.query<ProductsResponse, { subCategoryId: number; excludeId: number }>({
+      query: ({ subCategoryId, excludeId }) => {
+        const where = {
+          and: [
+            { "subCategory.id": { equals: subCategoryId } },
+            { id: { not_equals: excludeId } },
+          ],
+        };
+        const queryString = qs.stringify({ where, limit: 4 }, { encode: true });
+        return { url: `/api/products?${queryString}` };
+      },
+    }),
+
+    getSuggestedByCategory: builder.query<ProductsResponse, { categoryId: number; excludeId: number }>({
+      query: ({ categoryId, excludeId }) => {
+        const where = {
+          and: [
+            { "subCategory.category.id": { equals: categoryId } },
+            { id: { not_equals: excludeId } },
+          ],
+        };
+        const queryString = qs.stringify({ where, limit: 4 }, { encode: true });
+        return { url: `/api/products?${queryString}` };
+      },
+    }),
   }),
 });
 
-export const { useGetProductsQuery, useGetProductByIdQuery } = productsApi;
+export const { useGetProductsQuery, useGetProductByIdQuery, useGetSuggestedProductsQuery, useGetSuggestedByCategoryQuery } = productsApi;
