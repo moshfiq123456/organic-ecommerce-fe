@@ -62,20 +62,21 @@ export default function RootLayout({
   const slug = host.split(":")[0].split(".")[0]
   const knownThemes = ["just-healthy", "la-luminosite"]
   const theme = knownThemes.includes(slug) ? slug : undefined
+  const isKnown = knownThemes.includes(slug)
 
   return (
     <html lang="en" {...(theme ? { "data-theme": theme } : {})}>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${cormorant.variable} ${lora.variable} antialiased`}>
         <Providers slug={slug}>
-          <PageLoader />
-          <Header />
+          {isKnown && <PageLoader />}
+          {isKnown && <Header />}
           <Suspense fallback={null}>
-            <main className="pt-18 [&:has(.hero-fullbleed)]:pt-0">
+            <main className={isKnown ? "pt-18 [&:has(.hero-fullbleed)]:pt-0" : ""}>
               {children}
             </main>
           </Suspense>
-          <Footer />
-          <FloatingSocial />
+          {isKnown && <Footer />}
+          {isKnown && <FloatingSocial />}
         </Providers>
         <Analytics />
       </body>

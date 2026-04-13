@@ -206,8 +206,177 @@ function ProductSection({ title, subtitle, products, isLoading, emptyMessage }: 
 // ── Back to Top ───────────────────────────────────────
 
 // ── Page ──────────────────────────────────────────────
+const BRANDS = [
+  {
+    slug: "la-luminosite",
+    name: "La Luminosité",
+    tagline: "Organic Beauty",
+    description: "Luxury botanical skincare crafted from the finest natural ingredients.",
+    logo: "/la-luminosite.png",
+    accent: "#b08d6a",
+    bg: "from-[#1a1208] to-[#2e1f0e]",
+    pillars: ["Skincare", "Serums", "Botanicals"],
+  },
+  {
+    slug: "just-healthy",
+    name: "Just Healthy",
+    tagline: "Fresh & Organic",
+    description: "Wholesome organic food products for a healthier, happier lifestyle.",
+    logo: "/just-healthy.png",
+    accent: "#4a7c59",
+    bg: "from-[#071a0e] to-[#0f2d1a]",
+    pillars: ["Nutrition", "Wellness", "Natural"],
+  },
+]
+
+function BrandLanding() {
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [host, setHost] = useState("")
+
+  useEffect(() => {
+    setHost(window.location.host)
+  }, [])
+
+  const getUrl = (slug: string) => {
+    if (!host) return "#"
+    // e.g. local:3001 → just-healthy.local:3001
+    return `${window.location.protocol}//${slug}.${host}`
+  }
+
+  return (
+    <div className="fixed inset-0 bg-[#0a0a0a] flex flex-col items-center justify-center overflow-hidden">
+
+      {/* Background ambient glow */}
+      <div className="absolute inset-0 pointer-events-none">
+        <motion.div
+          animate={{ opacity: hovered === "la-luminosite" ? 0.18 : 0.06 }}
+          transition={{ duration: 0.8 }}
+          className="absolute -left-40 top-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#b08d6a] blur-[120px]"
+        />
+        <motion.div
+          animate={{ opacity: hovered === "just-healthy" ? 0.18 : 0.06 }}
+          transition={{ duration: 0.8 }}
+          className="absolute -right-40 top-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#4a7c59] blur-[120px]"
+        />
+      </div>
+
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        className="text-center mb-12 z-10"
+      >
+        <p className="text-white/30 text-xs tracking-[0.4em] uppercase mb-3">Welcome</p>
+        <h1 className="text-3xl md:text-4xl font-light text-white tracking-wide">Choose Your Experience</h1>
+      </motion.div>
+
+      {/* Cards */}
+      <div className="flex flex-col md:flex-row gap-5 px-6 z-10 w-full max-w-3xl">
+        {BRANDS.map((brand, i) => (
+          <motion.a
+            key={brand.slug}
+            href={getUrl(brand.slug)}
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
+            onHoverStart={() => setHovered(brand.slug)}
+            onHoverEnd={() => setHovered(null)}
+            whileHover={{ y: -8, scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className={`relative flex-1 rounded-3xl bg-gradient-to-br ${brand.bg} border border-white/8 overflow-hidden cursor-pointer group`}
+            style={{ boxShadow: hovered === brand.slug ? `0 32px 80px -12px ${brand.accent}40` : "0 8px 32px -8px rgba(0,0,0,0.5)" }}
+          >
+            {/* Card inner glow on hover */}
+            <motion.div
+              animate={{ opacity: hovered === brand.slug ? 1 : 0 }}
+              transition={{ duration: 0.4 }}
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: `radial-gradient(ellipse at 50% 0%, ${brand.accent}22 0%, transparent 70%)` }}
+            />
+
+            {/* Animated border */}
+            <motion.div
+              animate={{ opacity: hovered === brand.slug ? 1 : 0 }}
+              transition={{ duration: 0.4 }}
+              className="absolute inset-0 rounded-3xl pointer-events-none"
+              style={{ boxShadow: `inset 0 0 0 1px ${brand.accent}50` }}
+            />
+
+            <div className="relative p-8 md:p-10 flex flex-col min-h-[340px]">
+              {/* Logo */}
+              <motion.div
+                animate={{ scale: hovered === brand.slug ? 1.08 : 1 }}
+                transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                className="mb-6"
+              >
+                <img
+                  src={brand.logo}
+                  alt={brand.name}
+                  className="h-14 w-auto object-contain brightness-0 invert opacity-90"
+                />
+              </motion.div>
+
+              {/* Text */}
+              <div className="flex-1">
+                <p className="text-xs tracking-[0.3em] uppercase mb-2" style={{ color: brand.accent }}>
+                  {brand.tagline}
+                </p>
+                <h2 className="text-2xl md:text-3xl font-light text-white mb-3 leading-tight">
+                  {brand.name}
+                </h2>
+                <p className="text-white/45 text-sm leading-relaxed">
+                  {brand.description}
+                </p>
+              </div>
+
+              {/* Pillars */}
+              <div className="flex gap-2 mt-6 flex-wrap">
+                {brand.pillars.map((p) => (
+                  <span
+                    key={p}
+                    className="text-[10px] tracking-widest uppercase px-3 py-1 rounded-full border border-white/10 text-white/35"
+                  >
+                    {p}
+                  </span>
+                ))}
+              </div>
+
+              {/* CTA arrow */}
+              <motion.div
+                animate={{ x: hovered === brand.slug ? 4 : 0, opacity: hovered === brand.slug ? 1 : 0.4 }}
+                transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                className="absolute bottom-8 right-8 flex items-center gap-2 text-sm font-light"
+                style={{ color: brand.accent }}
+              >
+                <span className="tracking-wider">Explore</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </motion.div>
+            </div>
+          </motion.a>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8, duration: 0.6 }}
+        className="text-white/15 text-xs mt-12 z-10 tracking-widest uppercase"
+      >
+        Pure · Natural · Organic
+      </motion.p>
+    </div>
+  )
+}
+
 export default function HomePage() {
   const slug = useSubdomain()
+  const knownSlugs = ["just-healthy", "la-luminosite"]
+
+  if (!knownSlugs.includes(slug)) return <BrandLanding />
 
   const { data: featuredData, isLoading: featuredLoading } = useGetProductsQuery(
     { limit: 6, categoryCode: slug, productType: "featured" },
