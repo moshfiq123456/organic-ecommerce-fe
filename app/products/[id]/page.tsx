@@ -4,8 +4,9 @@ import { useState, useRef } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, ShoppingCart, Heart, Share2, Loader2, ChevronRight } from "lucide-react"
+import { ArrowLeft, ShoppingCart, Loader2, ChevronRight } from "lucide-react"
 import { useGetProductByIdQuery, useGetSuggestedProductsQuery, useGetSuggestedByCategoryQuery, getImageUrl } from "@/api/productsApi"
+import { WishlistButton } from "@/components/wishlist-button"
 
 const ZOOM = 2
 
@@ -201,12 +202,7 @@ export default function ProductPage({ params }: ProductPageProps) {
                   {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
                 </Button>
               </Link>
-              {/* <Button variant="outline" size="lg">
-                <Heart className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="lg">
-                <Share2 className="h-4 w-4" />
-              </Button> */}
+              <WishlistButton productId={product.id} className="h-11 w-11" />
             </div>
 
             {/* Product Meta */}

@@ -16,6 +16,7 @@ import { useDispatch } from "react-redux"
 import { AppDispatch } from "@/store/store"
 import { useGetProductsQuery, useGetProductByIdQuery, getImageUrl } from "@/api/productsApi"
 import { addToCart } from "@/slices/cartSlice"
+import { WishlistButton } from "@/components/wishlist-button"
 
 const MAX_PRICE = 1000
 
@@ -247,6 +248,11 @@ function ProductCard({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Wishlist toggle */}
+        <div className="absolute bottom-2.5 right-2.5 z-10">
+          <WishlistButton productId={product.id} size="sm" />
+        </div>
 
         {/* Badges */}
         {product.stockIn === 0 && (

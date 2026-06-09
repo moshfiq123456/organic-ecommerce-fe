@@ -6,11 +6,12 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSelector, useDispatch } from "react-redux"
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion"
-import { ShoppingBag, Menu, X, Leaf, Minus, Plus, Trash2, ShoppingCart, Search } from "lucide-react"
+import { ShoppingBag, Menu, X, Leaf, Minus, Plus, Trash2, ShoppingCart, Search, User, Heart } from "lucide-react"
 import type { RootState } from "@/store/store"
 import { removeFromCart, updateQuantity } from "@/slices/cartSlice"
 import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
 import { useGetMainMenuQuery } from "@/api/mainMenuApi"
+import { useGetWishlistQuery } from "@/api/wishlistApi"
 import { useRouter } from "next/navigation"
 import {
   Drawer,
@@ -235,6 +236,9 @@ export function Header() {
 
   const pathname = usePathname()
   const dispatch = useDispatch()
+  const authUser = useSelector((state: RootState) => state.auth.user)
+  const { data: wishlistItems } = useGetWishlistQuery(undefined, { skip: !authUser })
+  const wishlistCount = wishlistItems?.length ?? 0
   const cartItems = useSelector((state: RootState) => state.cart.items)
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -390,6 +394,42 @@ export function Header() {
               >
                 {/* Search */}
                 <NavSearch isTransparent={isTransparent} />
+
+                {/* Account — links to login or account page */}
+                <Link href={authUser ? "/account" : "/login"} aria-label={authUser ? "My account" : "Sign in"}>
+                  <motion.span
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.92 }}
+                    className={`flex items-center justify-center p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`}
+                  >
+                    <User className="h-5 w-5" />
+                  </motion.span>
+                </Link>
+
+                {/* Wishlist — links to wishlist page (or login, if signed out) */}
+                <Link href={authUser ? "/wishlist" : "/login"} aria-label="Wishlist">
+                  <motion.span
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.92 }}
+                    className={`relative flex items-center justify-center p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`}
+                  >
+                    <Heart className="h-5 w-5" />
+                    <AnimatePresence mode="popLayout">
+                      {wishlistCount > 0 && (
+                        <motion.span
+                          key={wishlistCount}
+                          initial={{ scale: 0, y: 4 }}
+                          animate={{ scale: 1, y: 0 }}
+                          exit={{ scale: 0, y: -4 }}
+                          transition={{ type: "spring", stiffness: 600, damping: 22 }}
+                          className="absolute -top-0.5 -right-0.5 h-4.5 min-w-4.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1 shadow-sm"
+                        >
+                          {wishlistCount > 9 ? "9+" : wishlistCount}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.span>
+                </Link>
 
                 {/* Cart button — opens cart drawer */}
                 <motion.button

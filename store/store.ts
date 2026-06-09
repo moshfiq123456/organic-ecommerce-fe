@@ -6,7 +6,10 @@ import { socialMenuApi } from '@/api/socialMenuApi';
 import { contactApi } from '@/api/contactApi';
 import { contactInfoApi } from '@/api/contactInfoApi';
 import { heroApi } from '@/api/heroApi';
+import { authApi } from '@/api/authApi';
+import { wishlistApi } from '@/api/wishlistApi';
 import  cartReducer  from '@/slices/cartSlice';
+import authReducer from '@/slices/authSlice';
 // @/store/store.ts
 import { configureStore } from '@reduxjs/toolkit'
 
@@ -14,6 +17,7 @@ import { configureStore } from '@reduxjs/toolkit'
 export const store = configureStore({
   reducer: {
     cart: cartReducer,
+    auth: authReducer,
     [productsApi.reducerPath]: productsApi.reducer,
     [ordersApi.reducerPath]: ordersApi.reducer,
     [categoriesApi.reducerPath]: categoriesApi.reducer,
@@ -22,6 +26,8 @@ export const store = configureStore({
     [contactApi.reducerPath]: contactApi.reducer,
     [contactInfoApi.reducerPath]: contactInfoApi.reducer,
     [heroApi.reducerPath]: heroApi.reducer,
+    [authApi.reducerPath]: authApi.reducer,
+    [wishlistApi.reducerPath]: wishlistApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -32,7 +38,9 @@ export const store = configureStore({
       socialMenuApi.middleware,
       contactApi.middleware,
       contactInfoApi.middleware,
-      heroApi.middleware
+      heroApi.middleware,
+      authApi.middleware,
+      wishlistApi.middleware
     ),
 });
 
