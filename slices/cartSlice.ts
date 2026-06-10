@@ -41,10 +41,19 @@ const cartSlice = createSlice({
     clearCart: (state) => {
       state.items = []
     },
+    syncCartFromBackend: (state, action: PayloadAction<any[]>) => {
+      state.items = action.payload.map((item: any) => ({
+        id: item.product.id,
+        name: item.product.title || item.product.name,
+        price: item.itemPrice,
+        quantity: item.quantity,
+        dbId: item.id,
+      }))
+    },
   },
 })
 
-export const { addToCart, removeFromCart, updateQuantity, clearCart } =
+export const { addToCart, removeFromCart, updateQuantity, clearCart, syncCartFromBackend } =
   cartSlice.actions
 
 export default cartSlice.reducer

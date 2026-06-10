@@ -15,7 +15,7 @@ import { useSubdomain } from "@/context/SubdomainContext"
 import { useDispatch } from "react-redux"
 import { AppDispatch } from "@/store/store"
 import { useGetProductsQuery, useGetProductByIdQuery, getImageUrl } from "@/api/productsApi"
-import { addToCart } from "@/slices/cartSlice"
+import { useAddToCart } from "@/hooks/useAddToCart"
 import { WishlistButton } from "@/components/wishlist-button"
 
 const MAX_PRICE = 1000
@@ -447,21 +447,20 @@ export default function ProductsPage() {
     images?: { image: { url: string } }[]
   }
 
+  const handleAddToCartBase = useAddToCart()
+
   const handleAddToCart = (product: CartProductSource) => {
     const imageUrl =
       typeof product.image === "string"
         ? product.image
         : product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url
 
-    dispatch(
-      addToCart({
-        id: product.id,
-        name: product.title || product.name || "Item",
-        price: product.price,
-        image: getImageUrl(imageUrl),
-        quantity: 1,
-      })
-    )
+    handleAddToCartBase({
+      id: product.id,
+      name: product.title || product.name || "Item",
+      price: product.price,
+      image: getImageUrl(imageUrl),
+    })
   }
 
   // Loading state

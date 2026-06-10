@@ -9,7 +9,7 @@ import { Leaf, Heart, Sparkles, ShoppingCart, Eye } from "lucide-react"
 import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
 import { useGetSubCategoriesQuery } from "@/api/categories"
 import { useSubdomain } from "@/context/SubdomainContext"
-import { addToCart } from "@/slices/cartSlice"
+import { useAddToCart } from "@/hooks/useAddToCart"
 import { HeroCarousel } from "@/components/hero-carousel"
 import type { AppDispatch } from "@/store/store"
 
@@ -167,11 +167,11 @@ function ProductSection({ title, subtitle, products, isLoading, emptyMessage }: 
   isLoading: boolean
   emptyMessage?: string
 }) {
-  const dispatch = useDispatch<AppDispatch>()
+  const handleAddToCart = useAddToCart()
 
-  const handleAddToCart = (product: any) => {
+  const wrappedHandleAddToCart = (product: any) => {
     const imageUrl = product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url
-    dispatch(addToCart({ id: product.id, name: product.title, price: product.salePrice || product.price, image: getImageUrl(imageUrl), quantity: 1 }))
+    handleAddToCart({ id: product.id, name: product.title, price: product.salePrice || product.price, image: getImageUrl(imageUrl) })
   }
 
   return (
@@ -195,7 +195,7 @@ function ProductSection({ title, subtitle, products, isLoading, emptyMessage }: 
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {products.map((product) => (
-            <FeaturedProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
+            <FeaturedProductCard key={product.id} product={product} onAddToCart={wrappedHandleAddToCart} />
           ))}
         </div>
       )}

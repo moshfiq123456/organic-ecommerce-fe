@@ -1,6 +1,7 @@
 import { createApi } from "@reduxjs/toolkit/query/react"
 import { axiosBaseQuery } from "./baseQuery"
 import { wishlistApi } from "./wishlistApi"
+import { cartApi } from "./cartApi"
 import { setCredentials, clearCredentials, type AuthUser } from "@/slices/authSlice"
 
 const PAYLOAD_URL = process.env.NEXT_PUBLIC_PAYLOAD_URL || "http://localhost:3000"
@@ -72,10 +73,9 @@ export const authApi = createApi({
           await queryFulfilled
         } finally {
           dispatch(clearCredentials())
-          // Drop cached wishlist data so a stale count/state from the previous
-          // session never leaks into the header badge or another account that
-          // signs in afterwards on the same browser.
-          dispatch(wishlistApi.util.resetApiState())
+          // Invalidate tags to force refetch and clear cached data immediately
+          dispatch(wishlistApi.util.invalidateTags(["Wishlist"]))
+          dispatch(cartApi.util.invalidateTags(["Cart"]))
         }
       },
     }),

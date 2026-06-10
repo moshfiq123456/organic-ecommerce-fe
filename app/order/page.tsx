@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Minus, Plus, X, Loader2, AlertCircle, ShoppingBag, Truck, CheckCircle2, Package, Phone, MapPin, Copy, Check } from "lucide-react"
-import { removeFromCart, updateQuantity, clearCart } from "@/slices/cartSlice"
+import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
+import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
+import { useClearCart } from "@/hooks/useClearCart"
 import { useCreateOrderMutation } from "@/api/orderApi"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
@@ -177,6 +179,7 @@ export default function OrderPage() {
   const [createOrder, { isLoading }] = useCreateOrderMutation()
   const dispatch = useDispatch<AppDispatch>()
   const cartItems = useSelector((state: RootState) => state.cart.items)
+  const handleClearCart = useClearCart()
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -234,16 +237,19 @@ export default function OrderPage() {
 
   // ─── Cart handlers ────────────────────────────────────────────────────────────
 
+  const handleRemoveFromCart = useRemoveFromCart()
+  const handleUpdateCartQuantity = useUpdateCartQuantity()
+
   const handleUpdateQuantity = (id: number, newQuantity: number) => {
     if (newQuantity < 1) {
-      dispatch(removeFromCart(id))
+      handleRemoveFromCart(id)
     } else {
-      dispatch(updateQuantity({ id, quantity: newQuantity }))
+      handleUpdateCartQuantity(id, newQuantity)
     }
   }
 
   const handleRemoveItem = (id: number) => {
-    dispatch(removeFromCart(id))
+    handleRemoveFromCart(id)
   }
 
   // ─── Totals ───────────────────────────────────────────────────────────────────
@@ -291,7 +297,7 @@ export default function OrderPage() {
     try {
       const res = await createOrder(payload).unwrap()
       setSuccessOrder(res)
-      dispatch(clearCart())
+      handleClearCart()
     } catch (error) {
       console.error("ORDER FAILED ❌", error)
       toast.error("Failed to place order", {

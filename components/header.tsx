@@ -8,7 +8,8 @@ import { useSelector, useDispatch } from "react-redux"
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion"
 import { ShoppingBag, Menu, X, Leaf, Minus, Plus, Trash2, ShoppingCart, Search, User, Heart } from "lucide-react"
 import type { RootState } from "@/store/store"
-import { removeFromCart, updateQuantity } from "@/slices/cartSlice"
+import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
+import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
 import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
 import { useGetMainMenuQuery } from "@/api/mainMenuApi"
 import { useGetWishlistQuery } from "@/api/wishlistApi"
@@ -238,36 +239,46 @@ export function Header() {
   const dispatch = useDispatch()
   const authUser = useSelector((state: RootState) => state.auth.user)
   const { data: wishlistItems } = useGetWishlistQuery(undefined, { skip: !authUser })
-  const wishlistCount = wishlistItems?.length ?? 0
+  const wishlistCount = authUser ? (wishlistItems?.length ?? 0) : 0
   const cartItems = useSelector((state: RootState) => state.cart.items)
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const prevCartCount = useRef(cartCount)
+  const prevAuthUser = useRef(authUser)
   const { scrollY } = useScroll()
+
+  // Track user changes to skip auto-open on login/logout
+  useEffect(() => {
+    prevAuthUser.current = authUser
+  }, [authUser])
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     setScrolled(latest > 20)
   })
 
-  // Shake + auto-open cart drawer when item is added
+  // Shake + auto-open cart drawer when item is added (but not on login)
   useEffect(() => {
-    if (cartCount > prevCartCount.current) {
+    const userJustLoggedIn = prevAuthUser.current !== authUser && authUser !== null
+    if (cartCount > prevCartCount.current && !userJustLoggedIn) {
       setCartBounce(true)
       setIsCartOpen(true)
       const t = setTimeout(() => setCartBounce(false), 600)
       return () => clearTimeout(t)
     }
     prevCartCount.current = cartCount
-  }, [cartCount])
+  }, [cartCount, authUser])
 
   useEffect(() => {
     setIsMenuOpen(false)
   }, [pathname])
 
+  const handleRemoveFromCart = useRemoveFromCart()
+  const handleUpdateCartQuantity = useUpdateCartQuantity()
+
   const handleQty = (id: number, current: number, delta: number) => {
     const next = current + delta
-    if (next < 1) dispatch(removeFromCart(id))
-    else dispatch(updateQuantity({ id, quantity: next }))
+    if (next < 1) handleRemoveFromCart(id)
+    else handleUpdateCartQuantity(id, next)
   }
 
   // Transparent only on home page when at top
@@ -575,7 +586,7 @@ export function Header() {
                             ৳{(item.price * item.quantity).toFixed(0)}
                           </span>
                           <button
-                            onClick={() => dispatch(removeFromCart(item.id))}
+                            onClick={() => handleRemoveFromCart(item.id)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                             aria-label="Remove item"
                           >
