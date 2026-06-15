@@ -3,6 +3,7 @@ import { axiosBaseQuery } from "./baseQuery"
 import { wishlistApi } from "./wishlistApi"
 import { cartApi } from "./cartApi"
 import { setCredentials, clearCredentials, type AuthUser } from "@/slices/authSlice"
+import { clearCart } from "@/slices/cartSlice"
 
 const PAYLOAD_URL = process.env.NEXT_PUBLIC_PAYLOAD_URL || "http://localhost:3000"
 
@@ -73,6 +74,7 @@ export const authApi = createApi({
           await queryFulfilled
         } finally {
           dispatch(clearCredentials())
+          dispatch(clearCart())
           // Invalidate tags to force refetch and clear cached data immediately
           dispatch(wishlistApi.util.invalidateTags(["Wishlist"]))
           dispatch(cartApi.util.invalidateTags(["Cart"]))

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { useDispatch } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Leaf, Heart, Sparkles, ShoppingCart, Eye } from "lucide-react"
@@ -10,8 +10,11 @@ import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
 import { useGetSubCategoriesQuery } from "@/api/categories"
 import { useSubdomain } from "@/context/SubdomainContext"
 import { useAddToCart } from "@/hooks/useAddToCart"
+import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
+import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
+import { WishlistButton } from "@/components/wishlist-button"
 import { HeroCarousel } from "@/components/hero-carousel"
-import type { AppDispatch } from "@/store/store"
+import type { AppDispatch, RootState } from "@/store/store"
 
 // ── Variants ──────────────────────────────────────────
 const cardVariants = {
@@ -52,6 +55,34 @@ function ProductSkeleton() {
 // ── Product Card ──────────────────────────────────────
 function FeaturedProductCard({ product, onAddToCart }: { product: any; onAddToCart: (p: any) => void }) {
   const [hovered, setHovered] = useState(false)
+  const cartItems = useSelector((state: RootState) => state.cart.items)
+  const cartItem = cartItems.find((item) => item.id === product.id)
+  const currentQty = cartItem?.quantity || 0
+
+  const handleAddToCartDirect = useAddToCart()
+  const handleRemoveFromCart = useRemoveFromCart()
+  const handleUpdateQuantity = useUpdateCartQuantity()
+
+  const handleIncrement = () => {
+    if (currentQty === 0) {
+      handleAddToCartDirect({
+        id: product.id,
+        name: product.title,
+        price: product.onSale && product.salePrice ? product.salePrice : product.price,
+        image: getImageUrl(product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url),
+      })
+    } else if (currentQty < product.stockIn) {
+      handleUpdateQuantity(product.id, currentQty + 1)
+    }
+  }
+
+  const handleDecrement = () => {
+    if (currentQty > 1) {
+      handleUpdateQuantity(product.id, currentQty - 1)
+    } else if (currentQty === 1) {
+      handleRemoveFromCart(product.id)
+    }
+  }
 
   return (
     <motion.div
@@ -111,6 +142,11 @@ function FeaturedProductCard({ product, onAddToCart }: { product: any; onAddToCa
             Pre-order
           </span>
         )}
+
+        {/* Wishlist toggle */}
+        <div className="absolute bottom-2.5 right-2.5 z-10">
+          <WishlistButton productId={product.id} size="sm" />
+        </div>
       </div>
 
       <div className="p-4 flex flex-col flex-1">
@@ -141,18 +177,46 @@ function FeaturedProductCard({ product, onAddToCart }: { product: any; onAddToCa
           </span>
         </div>
 
-        <div className="flex gap-2 mt-4">
-          <Link href={`/products/${product.id}`} className="flex-1">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-              <Button variant="outline" size="sm" className="w-full bg-transparent text-xs rounded-xl">Details</Button>
-            </motion.div>
-          </Link>
-          <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-            <Button size="sm" onClick={() => onAddToCart(product)} className="gap-1 text-xs w-full rounded-xl" disabled={product.stockIn === 0}>
-              <ShoppingCart className="h-3 w-3" />
-              {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
-            </Button>
-          </motion.div>
+        <div className="space-y-2 mt-4">
+          {/* Quantity controls */}
+          {product.stockIn > 0 && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] text-muted-foreground font-medium">Qty</span>
+              <div className="flex items-center gap-1 border border-border rounded-lg overflow-hidden bg-muted/50">
+                <button
+                  onClick={handleDecrement}
+                  disabled={currentQty === 0}
+                  className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
+                >
+                  −
+                </button>
+                <span className="w-5 text-center text-[10px] font-medium">{currentQty}</span>
+                <button
+                  onClick={handleIncrement}
+                  disabled={currentQty >= product.stockIn}
+                  className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Link href={`/products/${product.id}`} className="flex-1">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+                <Button variant="outline" size="sm" className="w-full bg-transparent text-xs rounded-xl">Details</Button>
+              </motion.div>
+            </Link>
+            {currentQty === 0 && (
+              <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+                <Button size="sm" onClick={handleIncrement} className="gap-1 text-xs w-full rounded-xl" disabled={product.stockIn === 0}>
+                  <ShoppingCart className="h-3 w-3" />
+                  {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
+                </Button>
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>

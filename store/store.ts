@@ -10,6 +10,8 @@ import { authApi } from '@/api/authApi';
 import { wishlistApi } from '@/api/wishlistApi';
 import { cartApi } from '@/api/cartApi';
 import { passwordApi } from '@/api/passwordApi';
+import { supportApi } from '@/api/supportApi';
+import { aboutApi } from '@/api/aboutApi';
 import  cartReducer  from '@/slices/cartSlice';
 import authReducer from '@/slices/authSlice';
 // @/store/store.ts
@@ -32,6 +34,8 @@ export const store = configureStore({
     [wishlistApi.reducerPath]: wishlistApi.reducer,
     [cartApi.reducerPath]: cartApi.reducer,
     [passwordApi.reducerPath]: passwordApi.reducer,
+    [supportApi.reducerPath]: supportApi.reducer,
+    [aboutApi.reducerPath]: aboutApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -46,7 +50,9 @@ export const store = configureStore({
       authApi.middleware,
       wishlistApi.middleware,
       cartApi.middleware,
-      passwordApi.middleware
+      passwordApi.middleware,
+      supportApi.middleware,
+      aboutApi.middleware
     ),
 });
 

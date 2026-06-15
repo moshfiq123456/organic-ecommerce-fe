@@ -12,10 +12,12 @@ import { Search, Filter, ShoppingCart, Loader2, Eye, X, ChevronLeft, ChevronRigh
 import { motion, AnimatePresence } from "framer-motion"
 import { businesses } from "@/lib/products"
 import { useSubdomain } from "@/context/SubdomainContext"
-import { useDispatch } from "react-redux"
-import { AppDispatch } from "@/store/store"
+import { useDispatch, useSelector } from "react-redux"
+import { AppDispatch, RootState } from "@/store/store"
 import { useGetProductsQuery, useGetProductByIdQuery, getImageUrl } from "@/api/productsApi"
 import { useAddToCart } from "@/hooks/useAddToCart"
+import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
+import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
 import { WishlistButton } from "@/components/wishlist-button"
 
 const MAX_PRICE = 1000
@@ -196,6 +198,34 @@ function ProductCard({
   onQuickView: (id: number) => void
 }) {
   const [hovered, setHovered] = useState(false)
+  const cartItems = useSelector((state: RootState) => state.cart.items)
+  const cartItem = cartItems.find((item) => item.id === product.id)
+  const currentQty = cartItem?.quantity || 0
+
+  const handleAddToCartDirect = useAddToCart()
+  const handleRemoveFromCart = useRemoveFromCart()
+  const handleUpdateQuantity = useUpdateCartQuantity()
+
+  const handleIncrement = async () => {
+    if (currentQty === 0) {
+      handleAddToCartDirect({
+        id: product.id,
+        name: product.title,
+        price: product.onSale && product.salePrice ? product.salePrice : product.price,
+        image: getImageUrl(product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url),
+      })
+    } else if (currentQty < product.stockIn) {
+      handleUpdateQuantity(product.id, currentQty + 1)
+    }
+  }
+
+  const handleDecrement = () => {
+    if (currentQty > 1) {
+      handleUpdateQuantity(product.id, currentQty - 1)
+    } else if (currentQty === 1) {
+      handleRemoveFromCart(product.id)
+    }
+  }
 
   return (
     <motion.div
@@ -301,25 +331,53 @@ function ProductCard({
           </span>
         </div>
 
-        <div className="flex gap-1.5 sm:gap-2 mt-3">
-          <Link href={`/products/${product.id}`} className="flex-1">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-              <Button variant="outline" size="sm" className="w-full bg-transparent text-[10px] sm:text-xs rounded-xl px-1 sm:px-3">
-                Details
-              </Button>
-            </motion.div>
-          </Link>
-          <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-            <Button
-              size="sm"
-              onClick={() => onAddToCart(product)}
-              className="gap-0.5 sm:gap-1 text-[10px] sm:text-xs w-full rounded-xl px-1 sm:px-3"
-              disabled={product.stockIn === 0}
-            >
-              <ShoppingCart className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
-              <span className="truncate">{product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}</span>
-            </Button>
-          </motion.div>
+        <div className="space-y-2 mt-3">
+          {/* Quantity controls */}
+          {product.stockIn > 0 && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[9px] sm:text-[10px] text-muted-foreground font-medium">Qty</span>
+              <div className="flex items-center gap-1 border border-border rounded-lg overflow-hidden bg-muted/50">
+                <button
+                  onClick={handleDecrement}
+                  disabled={currentQty === 0}
+                  className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
+                >
+                  −
+                </button>
+                <span className="w-6 text-center text-[10px] font-medium">{currentQty}</span>
+                <button
+                  onClick={handleIncrement}
+                  disabled={currentQty >= product.stockIn}
+                  className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-1.5 sm:gap-2">
+            <Link href={`/products/${product.id}`} className="flex-1">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+                <Button variant="outline" size="sm" className="w-full bg-transparent text-[10px] sm:text-xs rounded-xl px-1 sm:px-3">
+                  Details
+                </Button>
+              </motion.div>
+            </Link>
+            {currentQty === 0 && (
+              <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
+                <Button
+                  size="sm"
+                  onClick={handleIncrement}
+                  className="gap-0.5 sm:gap-1 text-[10px] sm:text-xs w-full rounded-xl px-1 sm:px-3"
+                  disabled={product.stockIn === 0}
+                >
+                  <ShoppingCart className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
+                  <span className="truncate">{product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}</span>
+                </Button>
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -443,6 +501,7 @@ export default function ProductsPage() {
     title?: string
     name?: string
     price: number
+    quantity?: number
     image?: { url?: string; thumbnailURL?: string | null } | string | null
     images?: { image: { url: string } }[]
   }
@@ -459,6 +518,7 @@ export default function ProductsPage() {
       id: product.id,
       name: product.title || product.name || "Item",
       price: product.price,
+      quantity: product.quantity || 1,
       image: getImageUrl(imageUrl),
     })
   }

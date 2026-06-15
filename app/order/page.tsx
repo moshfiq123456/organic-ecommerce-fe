@@ -215,8 +215,6 @@ export default function OrderPage() {
         if (!/^[+\d][\d\s\-(). ]{5,}$/.test(value)) return "Enter a valid phone number"
         return ""
       case "address":
-        if (!value.trim()) return "Address is required"
-        if (value.trim().length < 5) return "Address must be at least 5 characters"
         return ""
       case "city":
         if (!value.trim()) return "City is required"
@@ -264,7 +262,7 @@ export default function OrderPage() {
     e.preventDefault()
     setSubmitted(true)
 
-    const required = ["firstName", "lastName", "email", "phone", "address", "city"]
+    const required = ["firstName", "lastName", "email", "phone", "city"]
     const newErrors: Record<string, string> = {}
     required.forEach((field) => {
       const err = validateField(field, formData[field as keyof typeof formData] as string)

@@ -14,15 +14,18 @@ export function useAddToCart() {
     id: number
     name: string
     price: number
+    quantity?: number
     [key: string]: any
   }) => {
+    const qty = product.quantity || 1
+
     // Always add to local Redux state (for UI)
     dispatch(
       addToCart({
         id: product.id,
         name: product.name,
         price: product.price,
-        quantity: 1,
+        quantity: qty,
         ...product,
       })
     )
@@ -36,11 +39,11 @@ export function useAddToCart() {
           // Item already exists in cart - update quantity
           await updateCartItemApi({
             cartItemId: existingItem.dbId,
-            quantity: existingItem.quantity + 1,
+            quantity: existingItem.quantity + qty,
           }).unwrap()
         } else {
           // New item - add to cart
-          await addToCartApi({ productId: product.id, quantity: 1 }).unwrap()
+          await addToCartApi({ productId: product.id, quantity: qty }).unwrap()
         }
       } catch (error) {
         console.error("Failed to sync cart to backend:", error)

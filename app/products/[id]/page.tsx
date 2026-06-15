@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, ShoppingCart, Loader2, ChevronRight } from "lucide-react"
 import { useGetProductByIdQuery, useGetSuggestedProductsQuery, useGetSuggestedByCategoryQuery, getImageUrl } from "@/api/productsApi"
 import { WishlistButton } from "@/components/wishlist-button"
+import { useAddToCart } from "@/hooks/useAddToCart"
+import { toast } from "sonner"
 
 const ZOOM = 2
 
@@ -108,6 +110,36 @@ function ProductTabs({ ingredients, nutrition }: { ingredients?: string | null; 
   )
 }
 
+function ProductActionButtons({ product }: { product: any }) {
+  const handleAddToCart = useAddToCart()
+
+  const onAddToCart = () => {
+    const imageUrl = product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url
+    handleAddToCart({
+      id: product.id,
+      name: product.title,
+      price: product.onSale && product.salePrice ? product.salePrice : product.price,
+      image: getImageUrl(imageUrl),
+    })
+    toast.success("Added to cart!")
+  }
+
+  return (
+    <div className="flex gap-3">
+      <Button
+        size="lg"
+        className="w-full"
+        disabled={product.stockIn === 0}
+        onClick={onAddToCart}
+      >
+        <ShoppingCart className="h-4 w-4 mr-2" />
+        {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
+      </Button>
+      <WishlistButton productId={product.id} className="h-11 w-11" />
+    </div>
+  )
+}
+
 export default function ProductPage({ params }: ProductPageProps) {
   const productId = Number.parseInt(params.id)
 
@@ -195,15 +227,8 @@ export default function ProductPage({ params }: ProductPageProps) {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
-              <Link href="/order" className="flex-1">
-                <Button size="lg" className="w-full" disabled={product.stockIn === 0}>
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
-                </Button>
-              </Link>
-              <WishlistButton productId={product.id} className="h-11 w-11" />
-            </div>
+            <ProductActionButtons product={product} />
+
 
             {/* Product Meta */}
             <div className="space-y-3 pt-6 border-t text-sm text-muted-foreground">
@@ -290,44 +315,50 @@ function SuggestedProducts({ subCategoryId, categoryId, excludeId }: { subCatego
     <section className="border-t mt-12 pt-10 pb-12">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-light text-foreground mb-8">You may also like</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {suggestions.map((p) => (
-            <Link key={p.id} href={`/products/${p.id}`} className="group">
-              <div className="bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-lg transition-shadow duration-300">
-                <div className="aspect-square overflow-hidden bg-secondary/20 relative">
-                  <img
-                    src={getImageUrl(p.image?.thumbnailURL || p.image?.url || p.images?.[0]?.image?.url)}
-                    alt={p.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  {p.onSale && p.stockIn > 0 && (
-                    <span className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
-                      Sale
-                    </span>
-                  )}
-                  {p.stockIn === 0 && (
-                    <span className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
-                      Out of Stock
-                    </span>
-                  )}
-                </div>
-                <div className="p-3">
-                  <p className="text-xs text-muted-foreground mb-1">{p.subCategory?.title}</p>
-                  <h3 className="text-sm font-medium text-foreground line-clamp-1 mb-2">{p.title}</h3>
-                  <div className="flex items-center gap-2">
-                    {p.onSale && p.salePrice ? (
-                      <>
-                        <span className="text-sm font-semibold text-primary">৳{p.salePrice}</span>
-                        <span className="text-xs text-muted-foreground line-through">৳{p.price}</span>
-                      </>
-                    ) : (
-                      <span className="text-sm font-semibold text-primary">৳{p.price}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {suggestions.map((p) => {
+            const imageUrl = p.image?.thumbnailURL || p.image?.url || p.images?.[0]?.image?.url
+            return (
+              <Link key={p.id} href={`/products/${p.id}`} className="group h-full">
+                <div className="bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
+                  <div className="aspect-square overflow-hidden bg-secondary/20 relative shrink-0">
+                    <img
+                      src={getImageUrl(imageUrl)}
+                      alt={p.title}
+                      className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+                    />
+                    {p.onSale && p.stockIn > 0 && (
+                      <span className="absolute top-2.5 left-2.5 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                        Sale
+                      </span>
+                    )}
+                    {p.stockIn === 0 && (
+                      <span className="absolute top-2.5 right-2.5 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+                        Out of Stock
+                      </span>
                     )}
                   </div>
+                  <div className="p-4 flex flex-col flex-1">
+                    <p className="text-xs text-muted-foreground mb-2">{p.subCategory?.title}</p>
+                    <h3 className="text-sm font-semibold text-foreground line-clamp-2 mb-3 flex-1">{p.title}</h3>
+                    <div className="flex items-center gap-2 mt-auto">
+                      {p.onSale && p.salePrice ? (
+                        <>
+                          <span className="text-sm font-semibold text-primary">৳{p.salePrice}</span>
+                          <span className="text-xs text-muted-foreground line-through">৳{p.price}</span>
+                        </>
+                      ) : (
+                        <span className="text-sm font-semibold text-primary">৳{p.price}</span>
+                      )}
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium mt-2 w-fit ${p.stockIn > 0 ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>
+                      {p.stockIn > 0 ? `${p.stockIn} in stock` : "Out of stock"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            )
+          })}
         </div>
       </div>
     </section>

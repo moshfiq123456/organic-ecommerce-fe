@@ -6,13 +6,14 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSelector, useDispatch } from "react-redux"
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion"
-import { ShoppingBag, Menu, X, Leaf, Minus, Plus, Trash2, ShoppingCart, Search, User, Heart } from "lucide-react"
+import { ShoppingBag, Menu, X, Leaf, Minus, Plus, Trash2, ShoppingCart, Search, User, Heart, ChevronDown } from "lucide-react"
 import type { RootState } from "@/store/store"
 import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
 import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
 import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
 import { useGetMainMenuQuery } from "@/api/mainMenuApi"
 import { useGetWishlistQuery } from "@/api/wishlistApi"
+import { useGetSubCategoriesQuery } from "@/api/categories"
 import { useRouter } from "next/navigation"
 import {
   Drawer,
@@ -196,6 +197,7 @@ const TITLE_TO_HREF: Record<string, string> = {
   order: "/order",
   "track order": "/order/track",
   about: "/about",
+  support: "/support",
   contact: "/contact",
 }
 
@@ -207,6 +209,7 @@ const FALLBACK_NAV: NavLink[] = [
   { href: "/order", label: "Order" },
   { href: "/order/track", label: "Track Order" },
   { href: "/about", label: "About" },
+  { href: "/support", label: "Support" },
   { href: "/contact", label: "Contact" },
 ]
 
@@ -216,9 +219,12 @@ export function Header() {
   const [hoveredLink, setHoveredLink] = useState<string | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const [cartBounce, setCartBounce] = useState(false)
+  const [expandedMobileLinks, setExpandedMobileLinks] = useState<Set<string>>(new Set())
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const slug = useSubdomain()
 
   const { data: mainMenuData } = useGetMainMenuQuery(slug, { skip: !slug })
+  const { data: subCategoriesData } = useGetSubCategoriesQuery({ limit: 100 })
 
   useEffect(() => {
     if (mainMenuData) console.log("Main menu:", mainMenuData)
@@ -245,6 +251,7 @@ export function Header() {
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const prevCartCount = useRef(cartCount)
   const prevAuthUser = useRef(authUser)
+  const prevPathname = useRef(pathname)
   const { scrollY } = useScroll()
 
   // Track user changes to skip auto-open on login/logout
@@ -256,17 +263,22 @@ export function Header() {
     setScrolled(latest > 20)
   })
 
-  // Shake + auto-open cart drawer when item is added (but not on login)
+  // Shake + auto-open cart drawer when item is added (but not on login, order page, or navigation)
   useEffect(() => {
     const userJustLoggedIn = prevAuthUser.current !== authUser && authUser !== null
-    if (cartCount > prevCartCount.current && !userJustLoggedIn) {
+    const isOnOrderPage = pathname === "/order" || pathname.startsWith("/order/")
+    const pathnameChanged = prevPathname.current !== pathname
+
+    if (cartCount > prevCartCount.current && !userJustLoggedIn && !isOnOrderPage && !pathnameChanged) {
       setCartBounce(true)
       setIsCartOpen(true)
       const t = setTimeout(() => setCartBounce(false), 600)
       return () => clearTimeout(t)
     }
+
     prevCartCount.current = cartCount
-  }, [cartCount, authUser])
+    prevPathname.current = pathname
+  }, [cartCount, authUser, pathname])
 
   useEffect(() => {
     setIsMenuOpen(false)
@@ -351,15 +363,23 @@ export function Header() {
               {/* ── Desktop Nav ── */}
               <nav
                 className="hidden md:flex items-center gap-0.5"
-                onMouseLeave={() => setHoveredLink(null)}
               >
                 {navLinks.map((link, i) => {
                   const isActive = pathname === link.href
+                  const isProductsLink = link.label === "Products"
+                  const subCategories = subCategoriesData?.docs || []
+
                   return (
                     <motion.div
                       key={link.href}
-                      className="relative"
-                      onMouseEnter={() => setHoveredLink(link.href)}
+                      className="relative group"
+                      onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+                        setHoveredLink(link.href)
+                      }}
+                      onMouseLeave={() => {
+                        hoverTimeoutRef.current = setTimeout(() => setHoveredLink(null), 250)
+                      }}
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.07, duration: 0.4, ease: "easeOut" }}
@@ -372,6 +392,11 @@ export function Header() {
                           transition={{ type: "spring", stiffness: 400, damping: 32 }}
                         />
                       )}
+
+                      {/* Hover zone extender for dropdown */}
+                      {isProductsLink && hoveredLink === link.href && (
+                        <div className="absolute top-full left-0 right-0 h-80 pointer-events-auto" />
+                      )}
                       <Link
                         href={link.href}
                         className={[
@@ -383,6 +408,92 @@ export function Header() {
                       >
                         {link.label}
                       </Link>
+
+                      {/* Products Dropdown */}
+                      {isProductsLink && hoveredLink === link.href && subCategories.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="absolute top-full left-0 -translate-x-12 mt-0 pt-4 w-[28rem] sm:w-[24rem] md:w-[28rem] rounded-xl shadow-2xl z-50 max-w-[calc(100vw-2rem)]"
+                          onMouseEnter={() => {
+                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+                          }}
+                          onMouseLeave={() => {
+                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+                          }}
+                        >
+                          <div className={`${isTransparent ? "bg-gray-900/95 backdrop-blur" : "bg-background/95 backdrop-blur"} border ${isTransparent ? "border-white/10" : "border-border"} p-4 sm:p-6`}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                              {/* Products Column */}
+                              <div>
+                                <p className={`text-xs font-semibold tracking-widest mb-3 sm:mb-4 ${isTransparent ? "text-white/40" : "text-foreground/40"}`}>
+                                  CATEGORIES
+                                </p>
+                                <div className="space-y-2">
+                                  {subCategories.slice(0, Math.ceil(subCategories.length / 2)).map((subCategory: any, idx: number) => (
+                                    <motion.div
+                                      key={subCategory.id}
+                                      initial={{ opacity: 0, x: -10 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: idx * 0.05 }}
+                                    >
+                                      <Link
+                                        href={`/products?subcategoryId=${subCategory.id}`}
+                                        className={`block px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 group ${
+                                          isTransparent
+                                            ? "text-white/80 hover:text-white hover:bg-white/10"
+                                            : "text-foreground/80 hover:text-foreground hover:bg-foreground/6"
+                                        }`}
+                                      >
+                                        <p className="text-sm font-medium">{subCategory.title}</p>
+                                        <p className={`text-xs ${isTransparent ? "text-white/40 group-hover:text-white/60" : "text-foreground/40 group-hover:text-foreground/60"}`}>
+                                          Explore collection
+                                        </p>
+                                      </Link>
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* More Categories Column */}
+                              {subCategories.length > 1 && (
+                                <div>
+                                  <p className={`text-xs font-semibold tracking-widest mb-3 sm:mb-4 ${isTransparent ? "text-white/40" : "text-foreground/40"}`}>
+                                    {subCategories.length > 3 ? "MORE" : "SKINCARE"}
+                                  </p>
+                                  <div className="space-y-2">
+                                    {subCategories.slice(Math.ceil(subCategories.length / 2)).map((subCategory: any, idx: number) => (
+                                      <motion.div
+                                        key={subCategory.id}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: (Math.ceil(subCategories.length / 2) + idx) * 0.05 }}
+                                      >
+                                        <Link
+                                          href={`/products?subcategoryId=${subCategory.id}`}
+                                          className={`block px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 group ${
+                                            isTransparent
+                                              ? "text-white/80 hover:text-white hover:bg-white/10"
+                                              : "text-foreground/80 hover:text-foreground hover:bg-foreground/6"
+                                          }`}
+                                        >
+                                          <p className="text-sm font-medium">{subCategory.title}</p>
+                                          <p className={`text-xs ${isTransparent ? "text-white/40 group-hover:text-white/60" : "text-foreground/40 group-hover:text-foreground/60"}`}>
+                                            Explore collection
+                                          </p>
+                                        </Link>
+                                      </motion.div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
                       {isActive && (
                         <motion.div
                           layoutId="active-underline"
@@ -660,23 +771,97 @@ export function Header() {
           <nav className="flex flex-col gap-1 p-4 flex-1 overflow-y-auto">
             {navLinks.map((link) => {
               const isActive = pathname === link.href
+              const isProductsLink = link.label === "Products"
+              const isExpanded = expandedMobileLinks.has(link.href)
+
               return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={[
-                    "relative flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors overflow-hidden",
-                    isActive ? "text-primary bg-primary/8" : "text-foreground hover:bg-muted",
-                  ].join(" ")}
-                >
-                  {isActive && (
-                    <motion.span
-                      layoutId="drawer-bar"
-                      className="absolute left-0 top-2 bottom-2 w-0.75 rounded-full bg-primary"
-                    />
+                <div key={link.href}>
+                  <div className="flex items-center">
+                    <Link
+                      href={link.href}
+                      className={[
+                        "relative flex-1 flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors overflow-hidden",
+                        isActive ? "text-primary bg-primary/8" : "text-foreground hover:bg-muted",
+                      ].join(" ")}
+                      onClick={(e) => {
+                        if (isProductsLink) {
+                          e.preventDefault()
+                          setExpandedMobileLinks(prev => {
+                            const next = new Set(prev)
+                            if (next.has(link.href)) {
+                              next.delete(link.href)
+                            } else {
+                              next.add(link.href)
+                            }
+                            return next
+                          })
+                        }
+                      }}
+                    >
+                      {isActive && (
+                        <motion.span
+                          layoutId="drawer-bar"
+                          className="absolute left-0 top-2 bottom-2 w-0.75 rounded-full bg-primary"
+                        />
+                      )}
+                      <span className={isActive ? "pl-3" : ""}>{link.label}</span>
+                    </Link>
+                    {isProductsLink && (
+                      <button
+                        onClick={() => {
+                          setExpandedMobileLinks(prev => {
+                            const next = new Set(prev)
+                            if (next.has(link.href)) {
+                              next.delete(link.href)
+                            } else {
+                              next.add(link.href)
+                            }
+                            return next
+                          })
+                        }}
+                        className="p-2 text-foreground hover:bg-muted rounded-lg transition-colors"
+                      >
+                        <motion.div
+                          animate={{ rotate: isExpanded ? 180 : 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </motion.div>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Subcategories for Products */}
+                  {isProductsLink && isExpanded && subCategoriesData?.docs && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pl-4 space-y-1 mt-1">
+                        <Link
+                          href="/products"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="flex items-center px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                        >
+                          All Products
+                        </Link>
+                        {subCategoriesData.docs.map((subCategory: any) => (
+                          <Link
+                            key={subCategory.id}
+                            href={`/products?subcategoryId=${subCategory.id}`}
+                            onClick={() => setIsMenuOpen(false)}
+                            className="flex items-center px-4 py-2 text-sm text-foreground/70 hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                          >
+                            {subCategory.title}
+                          </Link>
+                        ))}
+                      </div>
+                    </motion.div>
                   )}
-                  <span className={isActive ? "pl-3" : ""}>{link.label}</span>
-                </Link>
+                </div>
               )
             })}
           </nav>

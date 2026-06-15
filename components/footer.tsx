@@ -15,12 +15,11 @@ const footerLinks = {
     { label: "Order", href: "/order" },
     { label: "Track Order", href: "/order/track" },
   ],
-  // Support: [
-  //   { label: "FAQ", href: "#" },
-  //   { label: "Shipping", href: "#" },
-  //   { label: "Returns", href: "#" },
-  //   { label: "Privacy Policy", href: "#" },
-  // ],
+  Support: [
+    { label: "Support Center", href: "/support" },
+    { label: "Create Ticket", href: "/support/create" },
+    { label: "Check Status", href: "/support" },
+  ],
 }
 
 const SocialIcons: Record<string, () => JSX.Element> = {
