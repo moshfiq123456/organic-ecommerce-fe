@@ -38,10 +38,27 @@ function OrderSuccessModal({ order, onClose }: { order: any; onClose: () => void
   const [copied, setCopied] = useState(false)
   const doc = order?.doc ?? order
 
-  const copyOrderNumber = () => {
-    navigator.clipboard.writeText(doc.orderNumber)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const copyOrderNumber = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(doc.orderNumber)
+      } else {
+        // Fallback for non-HTTPS or older browsers
+        const textArea = document.createElement("textarea")
+        textArea.value = doc.orderNumber
+        textArea.style.position = "fixed"
+        textArea.style.left = "-999999px"
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand("copy")
+        document.body.removeChild(textArea)
+      }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error("Failed to copy:", error)
+    }
   }
 
   useEffect(() => {
