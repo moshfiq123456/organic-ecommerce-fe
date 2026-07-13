@@ -11,10 +11,14 @@ export const aboutApi = createApi({
       {
         id: string
         title?: string
-        address?: string
         brandMissionVision?: string
         whyThisPlatform?: string
         sourcingPhilosophy?: string
+        values?: Array<{
+          icon?: string
+          title: string
+          description: string
+        }>
         media?: Array<{
           type: "photo" | "video"
           url?: {
@@ -32,13 +36,6 @@ export const aboutApi = createApi({
           }
           message?: string
         }>
-        socialMediaLinks?: Array<{
-          socialAccount: {
-            id: string
-            title: string
-            url?: string
-          }
-        }>
       },
       string
     >({
@@ -47,6 +44,7 @@ export const aboutApi = createApi({
         method: "GET",
         params: {
           "where[subDomain.code][equals]": subdomain,
+          depth: 2,
         },
       }),
       transformResponse: (response: any) => response.docs?.[0] || {},

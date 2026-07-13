@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MessageSquare, Plus, Search } from "lucide-react"
+import { MessageSquare, Plus, Search, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useGetGuestTicketsQuery } from "@/api/supportApi"
+import { useGetFaqsQuery } from "@/api/faqApi"
+import { useSubdomain } from "@/context/SubdomainContext"
 import TicketList from "@/components/support/TicketList"
 import { toast } from "sonner"
 
@@ -18,6 +20,10 @@ export default function SupportPage() {
   const { data: ticketsData, isLoading, refetch } = useGetGuestTicketsQuery(searchEmail, {
     skip: !searchEmail,
   })
+
+  const slug = useSubdomain()
+  const { data: faqData, isLoading: faqLoading } = useGetFaqsQuery(slug, { skip: !slug })
+  const faqs = faqData?.docs ?? []
 
   const handleSearchTickets = (e: React.FormEvent) => {
     e.preventDefault()
@@ -143,66 +149,39 @@ export default function SupportPage() {
         </div>
       </section>
 
-      {/* FAQ Section */}
-      <section className="py-16 bg-secondary/30">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-light text-foreground mb-12 text-center">
-              Frequently Asked Questions
-            </h2>
+      {/* FAQ Section — hidden entirely when there are no FAQs to show */}
+      {(faqLoading || faqs.length > 0) && (
+        <section className="py-16 bg-secondary/30">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-light text-foreground mb-12 text-center">
+                Frequently Asked Questions
+              </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">How long does it take to get a response?</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    We aim to respond to all tickets within 24 hours. Urgent tickets are addressed
-                    with higher priority.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Do I need an account?</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    No! You can create support tickets with just your email address. Just provide
-                    your email when creating a ticket.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Can I track my ticket?</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Yes! You can check your ticket status anytime using the "Check Tickets" tab and
-                    your email address.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">What categories of issues do you support?</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    We support various categories including order issues, shipping, returns, product
-                    quality, and technical support.
-                  </p>
-                </CardContent>
-              </Card>
+              {faqLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {faqs.map((faq) => (
+                    <Card key={faq.id}>
+                      <CardHeader>
+                        <CardTitle className="text-lg">{faq.question}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">
+                          {faq.answer}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   )
 }

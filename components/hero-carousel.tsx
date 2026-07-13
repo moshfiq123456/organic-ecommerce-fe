@@ -53,13 +53,15 @@ export function HeroCarousel() {
 
   const { data: heroData, isLoading: heroLoading } = useGetHeroQuery(slug, { skip: !slug })
 
-  const heroSlides: HeroSlide[] = (heroData?.items ?? []).map((item, i) => ({
+  // One hero document per sub-domain — the API already filtered by slug.
+  const heroSlides: HeroSlide[] = (heroData?.docs?.[0]?.items ?? []).map((item, i) => ({
     id: i,
     title: item.title,
-    subtitle: item.secondaryTitle,
-    description: item.description,
+    subtitle: item.secondaryTitle ?? "",
+    description: item.description ?? "",
     image: getImageUrl(item.image?.url),
-    cta: { text: item.buttonText, href: item.buttonLink },
+    // Blank link falls back to the sub-domain's products page.
+    cta: { text: item.buttonText, href: item.buttonLink || "/products" },
   }))
 
   const noData = !heroLoading && !!slug && heroSlides.length === 0

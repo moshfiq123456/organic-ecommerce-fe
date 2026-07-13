@@ -110,15 +110,17 @@ export function Footer() {
           >
             <div className="flex items-center gap-2.5 mb-3">
               <motion.img
-                src={slug === "just-healthy" ? "/just-healthy.png" : "/la-luminosite.png"}
+                src={slug === "just-healthy" ? "/just-healthy-logo.png" : "/la-luminosite.png"}
                 alt="logo"
-                className="h-10 w-auto object-contain brightness-0 invert"
+                className={`w-auto object-contain brightness-0 invert ${slug === "just-healthy" ? "h-24" : "h-10"}`}
                 whileHover={{ scale: 1.08 }}
                 transition={{ type: "spring", stiffness: 300, damping: 18 }}
               />
-              <span className={`${slug === "just-healthy" ? "font-(family-name:--font-lora)" : "font-(family-name:--font-cormorant)"} text-2xl font-light tracking-wide text-background`}>
-                {slug === "just-healthy" ? "Just Healthy" : "La Luminosité"}
-              </span>
+              {slug !== "just-healthy" && (
+                <span className="font-(family-name:--font-cormorant) text-2xl font-light tracking-wide text-background">
+                  La Luminosité
+                </span>
+              )}
             </div>
             <p className="text-background/40 text-xs font-light tracking-[0.28em] uppercase">
               Pure · Natural · Radiant

@@ -59,7 +59,7 @@ function ProductGallery({ images, fallback, alt }: { images: { url: string; id: 
   return (
     <div className="flex flex-col gap-3">
       <ZoomableImage src={getImageUrl(allImages[selected].url)} alt={alt} />
-      {allImages.length > 1 && (
+      {allImages.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           {allImages.map((img, i) => (
             <button
@@ -80,8 +80,8 @@ function ProductGallery({ images, fallback, alt }: { images: { url: string; id: 
 
 function ProductTabs({ ingredients, nutrition }: { ingredients?: string | null; nutrition?: string | null }) {
   const tabs = [
-    ...(ingredients ? [{ key: "ingredients", label: "Ingredients" }] : []),
-    ...(nutrition   ? [{ key: "nutrition",   label: "Nutrition"   }] : []),
+    ...(ingredients?.trim() ? [{ key: "ingredients", label: "Ingredients" }] : []),
+    ...(nutrition?.trim()   ? [{ key: "nutrition",   label: "Nutrition"   }] : []),
   ]
   const [active, setActive] = useState(tabs[0]?.key ?? "")
   const content: Record<string, string | null | undefined> = { ingredients, nutrition }
@@ -258,8 +258,8 @@ export default function ProductPage({ params }: ProductPageProps) {
               )}
             </div>
 
-            {/* Tabs — Ingredients / Nutrition */}
-            {(product.ingredients || product.nutrition) && (
+            {/* Tabs — Ingredients / Nutrition (shown only when the API has the data) */}
+            {(product.ingredients?.trim() || product.nutrition?.trim()) && (
               <ProductTabs ingredients={product.ingredients} nutrition={product.nutrition} />
             )}
           </div>

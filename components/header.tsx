@@ -174,12 +174,14 @@ function NavSearch({ isTransparent }: { isTransparent: boolean }) {
   )
 }
 
-const SUBDOMAIN_BRAND: Record<string, { name: string; logo: string; fontClass: string; color: string }> = {
+const SUBDOMAIN_BRAND: Record<string, { name: string; logo: string; fontClass: string; color: string; wordmark?: boolean }> = {
   "just-healthy": {
     name: "Just Healthy",
-    logo: "/just-healthy.png",
+    logo: "/just-healthy-logo.png",
     fontClass: "font-(family-name:--font-lora)",
     color: "#2D5A27",
+    // Logo image already contains the brand name — show it alone, no text.
+    wordmark: true,
   },
   "la-luminosite": {
     name: "La Luminosité",
@@ -320,7 +322,7 @@ export function Header() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
               className="flex items-center justify-between"
-              animate={{ height: scrolled ? 56 : 72 }}
+              animate={{ height: scrolled ? 64 : 84 }}
               transition={{ duration: 0.4, ease: "easeInOut" }}
             >
               {/* ── Logo ── */}
@@ -339,24 +341,30 @@ export function Header() {
                       <img
                         src={logoUrl}
                         alt={brandName}
-                        className="h-9 w-auto object-contain rounded-xl"
+                        className={`w-auto object-contain rounded-xl ${subdomainBrand.wordmark ? "h-[4.5rem] md:h-20" : "h-9"}`}
                       />
                     ) : (
                       <img
                         src={subdomainBrand.logo}
                         alt={brandName}
-                        className={`h-12 w-auto object-contain transition-all duration-500 ${isTransparent ? "brightness-0 invert" : "mix-blend-multiply dark:mix-blend-screen dark:invert"}`}
+                        className={`w-auto object-contain transition-all duration-500 ${
+                          subdomainBrand.wordmark
+                            ? `h-[4.5rem] md:h-20 ${isTransparent ? "brightness-0 invert" : ""}`
+                            : `h-12 ${isTransparent ? "brightness-0 invert" : "mix-blend-multiply dark:mix-blend-screen dark:invert"}`
+                        }`}
                       />
                     )}
                   </motion.div>
-                  <div className="flex flex-col leading-none">
-                    <span
-                      className={`${subdomainBrand.fontClass} text-[22px] font-semibold tracking-wide transition-colors duration-500 ${isTransparent ? "text-white" : ""}`}
-                      style={!isTransparent ? { color: subdomainBrand.color } : undefined}
-                    >
-                      {brandName}
-                    </span>
-                  </div>
+                  {!subdomainBrand.wordmark && (
+                    <div className="flex flex-col leading-none">
+                      <span
+                        className={`${subdomainBrand.fontClass} text-[22px] font-semibold tracking-wide transition-colors duration-500 ${isTransparent ? "text-white" : ""}`}
+                        style={!isTransparent ? { color: subdomainBrand.color } : undefined}
+                      >
+                        {brandName}
+                      </span>
+                    </div>
+                  )}
                 </Link>
               </motion.div>
 
@@ -754,12 +762,14 @@ export function Header() {
             <Link href="/" className="flex items-center gap-2" onClick={() => setIsMenuOpen(false)}>
               {logoUrl ? (
                 <img src={logoUrl} alt={brandName} className="h-7 w-auto object-contain rounded-lg" />
+              ) : subdomainBrand.wordmark ? (
+                <img src={subdomainBrand.logo} alt={brandName} className="h-14 w-auto object-contain" />
               ) : (
                 <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
                   <Leaf className="w-4 h-4 text-primary-foreground" strokeWidth={2.5} />
                 </div>
               )}
-              <span className="font-bold text-sm tracking-tight">{brandName}</span>
+              {!subdomainBrand.wordmark && <span className="font-bold text-sm tracking-tight">{brandName}</span>}
             </Link>
             <DrawerClose asChild>
               <button className="p-1.5 rounded-lg hover:bg-muted transition-colors" aria-label="Close menu">

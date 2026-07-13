@@ -102,7 +102,7 @@ function QuickViewModal({ productId, onClose, onAddToCart }: { productId: number
                     </>
                   )}
                 </div>
-                {allImages.length > 1 && (
+                {allImages.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
                     {allImages.map((img: any, i: number) => (
                       <button
@@ -449,7 +449,9 @@ export default function ProductsPage() {
   }, [priceRange])
 
   // Fetch products — filtered by tenant slug via subCategory.category.code
-  const { data: productsData, error, isLoading } = useGetProductsQuery(
+  // `isFetching` is true for every refetch (incl. filter changes); `isLoading`
+  // is only true on the very first load.
+  const { data: productsData, error, isLoading, isFetching } = useGetProductsQuery(
     {
       page: 1,
       limit: 100,
@@ -462,18 +464,24 @@ export default function ProductsPage() {
     { skip: !slug }
   )
 
+  // Keep the last successful result on screen while a new filter is fetching,
+  // so the grid dims + shows a loader instead of blanking out between calls.
+  const lastProductsData = useRef<typeof productsData>(undefined)
+  if (productsData) lastProductsData.current = productsData
+  const displayData = productsData ?? lastProductsData.current
+
   // Extract available subcategories from products
   const availableSubcategories = useMemo(() => {
-    if (!productsData?.docs) return []
+    if (!displayData?.docs) return []
     const subcats = new Map<number, { id: number; title: string }>()
-    productsData.docs.forEach((product) => {
+    displayData.docs.forEach((product) => {
       const subcat = product.subCategory
       if (!subcats.has(subcat.id)) {
         subcats.set(subcat.id, { id: subcat.id, title: subcat.title })
       }
     })
     return Array.from(subcats.values())
-  }, [productsData])
+  }, [displayData])
 
   // Initialize subcategory from URL params
   useEffect(() => {
@@ -481,7 +489,7 @@ export default function ProductsPage() {
     if (subcategoryParam) setSelectedSubcategoryIds([Number(subcategoryParam)])
   }, [searchParams])
 
-  const filteredProducts = productsData?.docs ?? []
+  const filteredProducts = displayData?.docs ?? []
 
   const toggleSubcategory = (subcategoryId: number) => {
     setSelectedSubcategoryIds((prev) =>
@@ -523,8 +531,9 @@ export default function ProductsPage() {
     })
   }
 
-  // Loading state
-  if (isLoading) {
+  // Full-page loader only on the very first load (no data yet). Filter
+  // refetches keep the page and use the grid overlay below instead.
+  if (isLoading && !displayData) {
     return (
       <div className="min-h-screen bg-background">
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -744,31 +753,50 @@ export default function ProductsPage() {
               </div>
 
               {/* Products Grid */}
-              {filteredProducts.length === 0 ? (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center py-12"
-                >
-                  <p className="text-lg text-muted-foreground mb-4">No products found matching your criteria.</p>
-                  <Button variant="outline" onClick={clearFilters}>
-                    Clear Filters
-                  </Button>
-                </motion.div>
-              ) : (
-                <motion.div layout className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-                  <AnimatePresence mode="popLayout">
-                    {filteredProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onAddToCart={handleAddToCart}
-                        onQuickView={(id) => setQuickViewId(id)}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </motion.div>
-              )}
+              <div className="relative min-h-[40vh]">
+                {/* Loader overlay shown while a filter change is fetching */}
+                {isFetching && (
+                  <div className="absolute inset-0 z-10 flex items-start justify-center pt-24 bg-background/50 backdrop-blur-[1px] rounded-xl">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      <span className="text-sm">Updating results…</span>
+                    </div>
+                  </div>
+                )}
+
+                {filteredProducts.length === 0 ? (
+                  // Only show the empty state once fetching settles, so it
+                  // doesn't flash between filter changes.
+                  !isFetching && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-center py-12"
+                    >
+                      <p className="text-lg text-muted-foreground mb-4">No products found matching your criteria.</p>
+                      <Button variant="outline" onClick={clearFilters}>
+                        Clear Filters
+                      </Button>
+                    </motion.div>
+                  )
+                ) : (
+                  <motion.div
+                    layout
+                    className={`grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 transition-opacity ${isFetching ? "opacity-40 pointer-events-none" : "opacity-100"}`}
+                  >
+                    <AnimatePresence mode="popLayout">
+                      {filteredProducts.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          onAddToCart={handleAddToCart}
+                          onQuickView={(id) => setQuickViewId(id)}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
+              </div>
             </div>
           </div>
         </div>

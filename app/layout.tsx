@@ -30,7 +30,7 @@ const SUBDOMAIN_META: Record<string, { title: string; description: string; favic
   "just-healthy": {
     title: "Just Healthy - Fresh & Organic",
     description: "Discover our range of fresh, healthy, and organic food products.",
-    favicon: "/just-healthy.png",
+    favicon: "/JustHealthyLogoTransparentBack.png",
   },
   "la-luminosite": {
     title: "La Luminosité - Organic Beauty Products",

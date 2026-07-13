@@ -286,7 +286,7 @@ const BRANDS = [
     name: "Just Healthy",
     tagline: "Fresh & Organic",
     description: "Wholesome organic food products for a healthier, happier lifestyle.",
-    logo: "/just-healthy.png",
+    logo: "/just-healthy-logo.png",
     accent: "#4a7c59",
     bg: "from-[#071a0e] to-[#0f2d1a]",
     pillars: ["Nutrition", "Wellness", "Natural"],

@@ -12,6 +12,7 @@ import { cartApi } from '@/api/cartApi';
 import { passwordApi } from '@/api/passwordApi';
 import { supportApi } from '@/api/supportApi';
 import { aboutApi } from '@/api/aboutApi';
+import { faqApi } from '@/api/faqApi';
 import  cartReducer  from '@/slices/cartSlice';
 import authReducer from '@/slices/authSlice';
 // @/store/store.ts
@@ -36,6 +37,7 @@ export const store = configureStore({
     [passwordApi.reducerPath]: passwordApi.reducer,
     [supportApi.reducerPath]: supportApi.reducer,
     [aboutApi.reducerPath]: aboutApi.reducer,
+    [faqApi.reducerPath]: faqApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -52,7 +54,8 @@ export const store = configureStore({
       cartApi.middleware,
       passwordApi.middleware,
       supportApi.middleware,
-      aboutApi.middleware
+      aboutApi.middleware,
+      faqApi.middleware
     ),
 });
 
