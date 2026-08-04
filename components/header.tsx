@@ -185,9 +185,11 @@ const SUBDOMAIN_BRAND: Record<string, { name: string; logo: string; fontClass: s
   },
   "la-luminosite": {
     name: "La Luminosité",
-    logo: "/la-luminosite.png",
+    logo: "/la-luminosite-logo.png",
     fontClass: "font-(family-name:--font-cormorant)",
     color: "#7B4F2E",
+    // Logo image already contains the brand name — show it alone, no text.
+    wordmark: true,
   },
 }
 
@@ -199,6 +201,7 @@ const TITLE_TO_HREF: Record<string, string> = {
   order: "/order",
   "track order": "/order/track",
   about: "/about",
+  "about us": "/about",
   support: "/support",
   contact: "/contact",
 }
@@ -210,7 +213,7 @@ const FALLBACK_NAV: NavLink[] = [
   { href: "/products", label: "Products" },
   { href: "/order", label: "Order" },
   { href: "/order/track", label: "Track Order" },
-  { href: "/about", label: "About" },
+  { href: "/about", label: "About Us" },
   { href: "/support", label: "Support" },
   { href: "/contact", label: "Contact" },
 ]
@@ -249,38 +252,31 @@ export function Header() {
   const { data: wishlistItems } = useGetWishlistQuery(undefined, { skip: !authUser })
   const wishlistCount = authUser ? (wishlistItems?.length ?? 0) : 0
   const cartItems = useSelector((state: RootState) => state.cart.items)
+  const addSeq = useSelector((state: RootState) => state.cart.addSeq ?? 0)
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const prevCartCount = useRef(cartCount)
-  const prevAuthUser = useRef(authUser)
-  const prevPathname = useRef(pathname)
   const { scrollY } = useScroll()
-
-  // Track user changes to skip auto-open on login/logout
-  useEffect(() => {
-    prevAuthUser.current = authUser
-  }, [authUser])
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     setScrolled(latest > 20)
   })
 
-  // Shake + auto-open cart drawer when item is added (but not on login, order page, or navigation)
+  // Shake + auto-open the cart drawer only when the user actually adds an item.
+  // `addSeq` bumps on an explicit add, never on cart hydration after login, so
+  // signing in no longer pops the drawer open.
+  const prevAddSeq = useRef(addSeq)
   useEffect(() => {
-    const userJustLoggedIn = prevAuthUser.current !== authUser && authUser !== null
+    const added = addSeq > prevAddSeq.current
+    prevAddSeq.current = addSeq
+
     const isOnOrderPage = pathname === "/order" || pathname.startsWith("/order/")
-    const pathnameChanged = prevPathname.current !== pathname
+    if (!added || isOnOrderPage) return
 
-    if (cartCount > prevCartCount.current && !userJustLoggedIn && !isOnOrderPage && !pathnameChanged) {
-      setCartBounce(true)
-      setIsCartOpen(true)
-      const t = setTimeout(() => setCartBounce(false), 600)
-      return () => clearTimeout(t)
-    }
-
-    prevCartCount.current = cartCount
-    prevPathname.current = pathname
-  }, [cartCount, authUser, pathname])
+    setCartBounce(true)
+    setIsCartOpen(true)
+    const t = setTimeout(() => setCartBounce(false), 600)
+    return () => clearTimeout(t)
+  }, [addSeq, pathname])
 
   useEffect(() => {
     setIsMenuOpen(false)

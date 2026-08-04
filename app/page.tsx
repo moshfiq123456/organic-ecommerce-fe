@@ -2,26 +2,16 @@
 
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { useDispatch, useSelector } from "react-redux"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Leaf, Heart, Sparkles, ShoppingCart, Eye } from "lucide-react"
-import { useGetProductsQuery, getImageUrl } from "@/api/productsApi"
+import { Leaf, Heart, Sparkles, ShoppingCart } from "lucide-react"
+import { useGetProductsQuery } from "@/api/productsApi"
 import { useGetSubCategoriesQuery } from "@/api/categories"
 import { useSubdomain } from "@/context/SubdomainContext"
-import { useAddToCart } from "@/hooks/useAddToCart"
-import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
-import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
-import { WishlistButton } from "@/components/wishlist-button"
 import { HeroCarousel } from "@/components/hero-carousel"
-import type { AppDispatch, RootState } from "@/store/store"
+import { ProductCard, useQuickView } from "@/components/product-card"
 
 // ── Variants ──────────────────────────────────────────
-const cardVariants = {
-  hidden: { opacity: 0, y: 28, scale: 0.97 },
-  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const } },
-}
-
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
   visible: (i: number) => ({
@@ -52,192 +42,15 @@ function ProductSkeleton() {
   )
 }
 
-// ── Product Card ──────────────────────────────────────
-function FeaturedProductCard({ product, onAddToCart }: { product: any; onAddToCart: (p: any) => void }) {
-  const [hovered, setHovered] = useState(false)
-  const cartItems = useSelector((state: RootState) => state.cart.items)
-  const cartItem = cartItems.find((item) => item.id === product.id)
-  const currentQty = cartItem?.quantity || 0
-
-  const handleAddToCartDirect = useAddToCart()
-  const handleRemoveFromCart = useRemoveFromCart()
-  const handleUpdateQuantity = useUpdateCartQuantity()
-
-  const handleIncrement = () => {
-    if (currentQty === 0) {
-      handleAddToCartDirect({
-        id: product.id,
-        name: product.title,
-        price: product.onSale && product.salePrice ? product.salePrice : product.price,
-        image: getImageUrl(product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url),
-      })
-    } else if (currentQty < product.stockIn) {
-      handleUpdateQuantity(product.id, currentQty + 1)
-    }
-  }
-
-  const handleDecrement = () => {
-    if (currentQty > 1) {
-      handleUpdateQuantity(product.id, currentQty - 1)
-    } else if (currentQty === 1) {
-      handleRemoveFromCart(product.id)
-    }
-  }
-
-  return (
-    <motion.div
-      variants={cardVariants}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, margin: "-60px" }}
-      whileHover={{ y: -5 }}
-      transition={{ type: "spring", stiffness: 300, damping: 26 }}
-      onHoverStart={() => setHovered(true)}
-      onHoverEnd={() => setHovered(false)}
-      className="bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-shadow duration-300 flex flex-col"
-    >
-      <div className="relative aspect-square overflow-hidden bg-secondary/20 shrink-0">
-        <motion.img
-          src={getImageUrl(product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url)}
-          alt={product.title}
-          animate={{ scale: hovered ? 1.08 : 1 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full h-full object-cover"
-        />
-
-        <AnimatePresence>
-          {hovered && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              className="absolute inset-0 bg-black/25 flex items-end justify-center pb-4"
-            >
-              <motion.div
-                initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 8, opacity: 0 }}
-                transition={{ delay: 0.04, duration: 0.2 }}
-              >
-                <Link href={`/products/${product.id}`}>
-                  <Button size="sm" variant="secondary" className="gap-1.5 text-xs shadow-lg rounded-full px-4">
-                    <Eye className="h-3.5 w-3.5" /> Quick View
-                  </Button>
-                </Link>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Badges — top-right for stock, top-left for sale/preorder (no overlap) */}
-        {product.stockIn === 0 && (
-          <span className="absolute top-2.5 right-2.5 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
-            Out of Stock
-          </span>
-        )}
-        {product.onSale && product.stockIn > 0 && (
-          <span className="absolute top-2.5 left-2.5 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
-            Sale
-          </span>
-        )}
-        {product.preOrder && (
-          <span className={`absolute text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/90 text-white ${product.onSale ? "top-8 left-2.5" : "top-2.5 left-2.5"}`}>
-            Pre-order
-          </span>
-        )}
-
-        {/* Wishlist toggle */}
-        <div className="absolute bottom-2.5 right-2.5 z-10">
-          <WishlistButton productId={product.id} size="sm" />
-        </div>
-      </div>
-
-      <div className="p-4 flex flex-col flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-            {product.subCategory?.title}
-          </span>
-          <div className="flex items-center gap-1.5">
-            {product.onSale && product.salePrice ? (
-              <>
-                <span className="text-xs text-muted-foreground line-through">৳{product.price}</span>
-                <span className="text-sm font-semibold text-primary">৳{product.salePrice}</span>
-              </>
-            ) : (
-              <span className="text-sm font-semibold text-primary">৳{product.price}</span>
-            )}
-          </div>
-        </div>
-
-        <h3 className="font-semibold text-foreground text-sm mb-1.5 line-clamp-1">{product.title}</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
-          {product.description || "No description available"}
-        </p>
-
-        <div className="flex items-center gap-1.5 mt-2">
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${product.stockIn > 0 ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>
-            {product.stockIn > 0 ? `${product.stockIn} in stock` : "Out of stock"}
-          </span>
-        </div>
-
-        <div className="space-y-2 mt-4">
-          {/* Quantity controls */}
-          {product.stockIn > 0 && (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] text-muted-foreground font-medium">Qty</span>
-              <div className="flex items-center gap-1 border border-border rounded-lg overflow-hidden bg-muted/50">
-                <button
-                  onClick={handleDecrement}
-                  disabled={currentQty === 0}
-                  className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
-                >
-                  −
-                </button>
-                <span className="w-5 text-center text-[10px] font-medium">{currentQty}</span>
-                <button
-                  onClick={handleIncrement}
-                  disabled={currentQty >= product.stockIn}
-                  className="w-5 h-5 flex items-center justify-center text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <Link href={`/products/${product.id}`} className="flex-1">
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-                <Button variant="outline" size="sm" className="w-full bg-transparent text-xs rounded-xl">Details</Button>
-              </motion.div>
-            </Link>
-            {currentQty === 0 && (
-              <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
-                <Button size="sm" onClick={handleIncrement} className="gap-1 text-xs w-full rounded-xl" disabled={product.stockIn === 0}>
-                  <ShoppingCart className="h-3 w-3" />
-                  {product.stockIn > 0 ? "Add to Cart" : "Out of Stock"}
-                </Button>
-              </motion.div>
-            )}
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
 // ── Product Section ───────────────────────────────────
-function ProductSection({ title, subtitle, products, isLoading, emptyMessage }: {
+function ProductSection({ title, subtitle, products, isLoading, emptyMessage, onQuickView }: {
   title: string
   subtitle: string
   products: any[]
   isLoading: boolean
   emptyMessage?: string
+  onQuickView?: (id: number) => void
 }) {
-  const handleAddToCart = useAddToCart()
-
-  const wrappedHandleAddToCart = (product: any) => {
-    const imageUrl = product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url
-    handleAddToCart({ id: product.id, name: product.title, price: product.salePrice || product.price, image: getImageUrl(imageUrl) })
-  }
-
   return (
     <div>
       <div className="text-center mb-10">
@@ -259,7 +72,7 @@ function ProductSection({ title, subtitle, products, isLoading, emptyMessage }: 
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {products.map((product) => (
-            <FeaturedProductCard key={product.id} product={product} onAddToCart={wrappedHandleAddToCart} />
+            <ProductCard key={product.id} product={product} onQuickView={onQuickView} />
           ))}
         </div>
       )}
@@ -276,7 +89,7 @@ const BRANDS = [
     name: "La Luminosité",
     tagline: "Organic Beauty",
     description: "Luxury botanical skincare crafted from the finest natural ingredients.",
-    logo: "/la-luminosite.png",
+    logo: "/la-luminosite-logo.png",
     accent: "#b08d6a",
     bg: "from-[#1a1208] to-[#2e1f0e]",
     pillars: ["Skincare", "Serums", "Botanicals"],
@@ -461,8 +274,12 @@ export default function HomePage() {
   const saleProducts = saleData?.docs ?? []
   const subcategories = subCategoriesData?.docs ?? []
 
+  const { openQuickView, quickView } = useQuickView()
+
   return (
     <div className="min-h-screen bg-background">
+      {quickView}
+
       {/* Hero */}
       <div className="-mt-18">
         <HeroCarousel />
@@ -508,6 +325,7 @@ export default function HomePage() {
             products={featuredProducts}
             isLoading={featuredLoading}
             emptyMessage="No featured products at the moment. Check back soon!"
+            onQuickView={openQuickView}
           />
           <div className="text-center mt-10">
             <Link href="/products">
@@ -526,6 +344,7 @@ export default function HomePage() {
               subtitle="Limited time offers — grab them before they're gone"
               products={saleProducts}
               isLoading={saleLoading}
+              onQuickView={openQuickView}
             />
             {saleProducts.length > 0 && (
               <div className="text-center mt-10">

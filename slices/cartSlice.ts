@@ -10,10 +10,17 @@ export interface CartItem {
 
 interface CartState {
   items: CartItem[]
+  /**
+   * Increments only when the user explicitly adds something to the cart.
+   * Loading the cart from the backend (e.g. right after login) does NOT
+   * bump it — that's what stops the cart drawer opening on its own.
+   */
+  addSeq: number
 }
 
 const initialState: CartState = {
   items: [],
+  addSeq: 0,
 }
 
 const cartSlice = createSlice({
@@ -27,6 +34,7 @@ const cartSlice = createSlice({
       } else {
         state.items.push({ ...action.payload, quantity: 1 })
       }
+      state.addSeq += 1
     },
     removeFromCart: (state, action: PayloadAction<number>) => {
       state.items = state.items.filter((item) => item.id !== action.payload)

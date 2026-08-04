@@ -50,6 +50,7 @@ export interface Product {
   tagline: string | null;
   ingredients: string | null;
   nutrition: string | null;
+  disclaimer: string | null;
   purity: string;
   available: boolean;
   stockIn: number;

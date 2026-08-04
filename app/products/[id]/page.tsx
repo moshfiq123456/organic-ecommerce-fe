@@ -4,9 +4,10 @@ import { useState, useRef } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, ShoppingCart, Loader2, ChevronRight } from "lucide-react"
+import { ArrowLeft, ShoppingCart, Loader2, ChevronRight, AlertCircle } from "lucide-react"
 import { useGetProductByIdQuery, useGetSuggestedProductsQuery, useGetSuggestedByCategoryQuery, getImageUrl } from "@/api/productsApi"
 import { WishlistButton } from "@/components/wishlist-button"
+import { ProductCard, useQuickView } from "@/components/product-card"
 import { useAddToCart } from "@/hooks/useAddToCart"
 import { toast } from "sonner"
 
@@ -144,6 +145,7 @@ export default function ProductPage({ params }: ProductPageProps) {
   const productId = Number.parseInt(params.id)
 
   const { data: product, isLoading, error } = useGetProductByIdQuery(productId)
+  const { openQuickView, quickView } = useQuickView()
 
   if (isLoading) {
     return (
@@ -161,10 +163,10 @@ export default function ProductPage({ params }: ProductPageProps) {
     )
   }
 
-  console.log("product", product)
-
   return (
     <div className="min-h-screen bg-background">
+      {quickView}
+
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumbs */}
         <nav className="flex items-center gap-1.5 text-sm text-muted-foreground mb-8 flex-wrap">
@@ -262,6 +264,23 @@ export default function ProductPage({ params }: ProductPageProps) {
             {(product.ingredients?.trim() || product.nutrition?.trim()) && (
               <ProductTabs ingredients={product.ingredients} nutrition={product.nutrition} />
             )}
+
+            {/* Disclaimer — always visible small print, not hidden behind a tab */}
+            {product.disclaimer?.trim() && (
+              <div className="mt-6 pt-5 border-t">
+                <div className="flex gap-2.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70 mt-0.5" />
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70 mb-1">
+                      Disclaimer
+                    </p>
+                    <p className="text-xs text-muted-foreground/80 leading-relaxed whitespace-pre-line">
+                      {product.disclaimer}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -271,13 +290,14 @@ export default function ProductPage({ params }: ProductPageProps) {
         subCategoryId={product.subCategory?.id}
         categoryId={product.subCategory?.category?.id}
         excludeId={product.id}
+        onQuickView={openQuickView}
       />
 
     </div>
   )
 }
 
-function SuggestedProducts({ subCategoryId, categoryId, excludeId }: { subCategoryId: number; categoryId?: number; excludeId: number }) {
+function SuggestedProducts({ subCategoryId, categoryId, excludeId, onQuickView }: { subCategoryId: number; categoryId?: number; excludeId: number; onQuickView?: (id: number) => void }) {
   const { data: subCatData, isLoading: subCatLoading } = useGetSuggestedProductsQuery(
     { subCategoryId, excludeId },
     { skip: !subCategoryId }
@@ -315,50 +335,10 @@ function SuggestedProducts({ subCategoryId, categoryId, excludeId }: { subCatego
     <section className="border-t mt-12 pt-10 pb-12">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-light text-foreground mb-8">You may also like</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {suggestions.map((p) => {
-            const imageUrl = p.image?.thumbnailURL || p.image?.url || p.images?.[0]?.image?.url
-            return (
-              <Link key={p.id} href={`/products/${p.id}`} className="group h-full">
-                <div className="bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
-                  <div className="aspect-square overflow-hidden bg-secondary/20 relative shrink-0">
-                    <img
-                      src={getImageUrl(imageUrl)}
-                      alt={p.title}
-                      className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
-                    />
-                    {p.onSale && p.stockIn > 0 && (
-                      <span className="absolute top-2.5 left-2.5 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
-                        Sale
-                      </span>
-                    )}
-                    {p.stockIn === 0 && (
-                      <span className="absolute top-2.5 right-2.5 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
-                        Out of Stock
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-4 flex flex-col flex-1">
-                    <p className="text-xs text-muted-foreground mb-2">{p.subCategory?.title}</p>
-                    <h3 className="text-sm font-semibold text-foreground line-clamp-2 mb-3 flex-1">{p.title}</h3>
-                    <div className="flex items-center gap-2 mt-auto">
-                      {p.onSale && p.salePrice ? (
-                        <>
-                          <span className="text-sm font-semibold text-primary">৳{p.salePrice}</span>
-                          <span className="text-xs text-muted-foreground line-through">৳{p.price}</span>
-                        </>
-                      ) : (
-                        <span className="text-sm font-semibold text-primary">৳{p.price}</span>
-                      )}
-                    </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium mt-2 w-fit ${p.stockIn > 0 ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>
-                      {p.stockIn > 0 ? `${p.stockIn} in stock` : "Out of stock"}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+          {suggestions.map((p) => (
+            <ProductCard key={p.id} product={p} onQuickView={onQuickView} />
+          ))}
         </div>
       </div>
     </section>
