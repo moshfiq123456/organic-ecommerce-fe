@@ -152,6 +152,40 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /*
+   * Always reserve the scrollbar gutter. Radix (Select, Dialog, Drawer) locks
+   * body scroll while open, which otherwise removes the scrollbar and shifts
+   * the whole page — including the fixed header, which body padding can't
+   * compensate for. Reserving the space keeps everything still.
+   */
+  html {
+    scrollbar-gutter: stable;
+  }
+
+  /*
+   * react-remove-scroll (used by Radix) also adds `margin-right: <scrollbar>px
+   * !important` to the body while locked, to make up for the scrollbar it hid.
+   * The reserved gutter above already prevents any shift, so that extra margin
+   * would move the page instead. Cancel it — the higher specificity here
+   * (`html body[...]` vs `body[...]`) is what lets it win against !important.
+   */
+  html body[data-scroll-locked],
+  html body.with-scroll-bars-hidden {
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /*
+   * A Select dropdown is not a modal — the page scrollbar should stay put
+   * instead of vanishing and reappearing. Radix has no `modal` prop on Select
+   * (v2.1.4), so undo the overflow lock, but ONLY while a select popup is open
+   * (`:has([data-slot="select-content"])`). Dialogs, drawers and the cart stay
+   * locked as before, since they render different content.
+   */
+  html body[data-scroll-locked]:has([data-slot='select-content']),
+  html body.with-scroll-bars-hidden:has([data-slot='select-content']) {
+    overflow: auto !important;
+  }
   body {
     @apply bg-background text-foreground;
   }

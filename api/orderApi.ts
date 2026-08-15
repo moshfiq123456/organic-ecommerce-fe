@@ -11,8 +11,12 @@ export interface OrderItemPayload {
 
 export interface CreateOrderPayload {
   orderItems: OrderItemPayload[]
+  /** `cod` = pay on delivery, `preorder` = paid up front via bKash. */
+  orderType: "cod" | "preorder"
   paymentMethod: string
   transactionId: string | null
+  /** bKash account the customer paid from — required for pre-orders. */
+  bkashNumber?: string | null
   phone: string
   email: string
   city: string

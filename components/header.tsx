@@ -229,11 +229,24 @@ export function Header() {
   const slug = useSubdomain()
 
   const { data: mainMenuData } = useGetMainMenuQuery(slug, { skip: !slug })
-  const { data: subCategoriesData } = useGetSubCategoriesQuery({ limit: 100 })
+  // Only this brand's sub categories.
+  const { data: subCategoriesData } = useGetSubCategoriesQuery(
+    { categoryCode: slug, limit: 100 },
+    { skip: !slug }
+  )
 
-  useEffect(() => {
-    if (mainMenuData) console.log("Main menu:", mainMenuData)
-  }, [mainMenuData])
+  // Products shown inside the Products mega-menu — only fetched once the user
+  // hovers a specific sub category, since that column is hidden until then.
+  const [hoveredSubCat, setHoveredSubCat] = useState<number | null>(null)
+  const { data: navProductsData, isFetching: navProductsLoading } = useGetProductsQuery(
+    {
+      limit: 4,
+      categoryCode: slug,
+      subcategoryIds: hoveredSubCat ? [hoveredSubCat] : undefined,
+    },
+    { skip: !slug || !hoveredSubCat }
+  )
+  const navProducts = navProductsData?.docs ?? []
 
   const menuDoc = mainMenuData?.docs?.[0]
   const navLinks: NavLink[] = menuDoc?.items?.length
@@ -382,7 +395,10 @@ export function Header() {
                         setHoveredLink(link.href)
                       }}
                       onMouseLeave={() => {
-                        hoverTimeoutRef.current = setTimeout(() => setHoveredLink(null), 250)
+                        hoverTimeoutRef.current = setTimeout(() => {
+                          setHoveredLink(null)
+                          setHoveredSubCat(null)
+                        }, 250)
                       }}
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -419,8 +435,15 @@ export function Header() {
                           initial={{ opacity: 0, y: -10, scale: 0.95 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                          transition={{ duration: 0.2, ease: "easeOut" }}
-                          className="absolute top-full left-0 -translate-x-12 mt-0 pt-4 w-[28rem] sm:w-[24rem] md:w-[28rem] rounded-xl shadow-2xl z-50 max-w-[calc(100vw-2rem)]"
+                          transition={{
+                            duration: 0.2,
+                            ease: "easeOut",
+                            layout: { type: "spring", stiffness: 420, damping: 38 },
+                          }}
+                          layout
+                          className={`absolute top-full left-0 -translate-x-12 mt-0 pt-4 rounded-xl shadow-2xl z-50 max-w-[calc(100vw-2rem)] ${
+                            hoveredSubCat ? "w-[30rem] sm:w-[28rem] md:w-[34rem]" : "w-[17rem]"
+                          }`}
                           onMouseEnter={() => {
                             if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
                           }}
@@ -428,27 +451,32 @@ export function Header() {
                             if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
                           }}
                         >
-                          <div className={`${isTransparent ? "bg-gray-900/95 backdrop-blur" : "bg-background/95 backdrop-blur"} border ${isTransparent ? "border-white/10" : "border-border"} p-4 sm:p-6`}>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                              {/* Products Column */}
+                          <div className={`${isTransparent ? "bg-gray-900/95 backdrop-blur" : "bg-background/95 backdrop-blur"} border ${isTransparent ? "border-white/10" : "border-border"} rounded-xl p-4 sm:p-6`}>
+                            <div className={`grid gap-5 sm:gap-8 ${hoveredSubCat ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+                              {/* Sub categories first */}
                               <div>
                                 <p className={`text-xs font-semibold tracking-widest mb-3 sm:mb-4 ${isTransparent ? "text-white/40" : "text-foreground/40"}`}>
-                                  CATEGORIES
+                                  OUR RANGE
                                 </p>
-                                <div className="space-y-2">
-                                  {subCategories.slice(0, Math.ceil(subCategories.length / 2)).map((subCategory: any, idx: number) => (
+                                <div className="space-y-1">
+                                  {subCategories.map((subCategory: any, idx: number) => (
                                     <motion.div
                                       key={subCategory.id}
                                       initial={{ opacity: 0, x: -10 }}
                                       animate={{ opacity: 1, x: 0 }}
-                                      transition={{ delay: idx * 0.05 }}
+                                      transition={{ delay: idx * 0.04 }}
                                     >
                                       <Link
                                         href={`/products?subcategoryId=${subCategory.id}`}
+                                        onMouseEnter={() => setHoveredSubCat(subCategory.id)}
                                         className={`block px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 group ${
-                                          isTransparent
-                                            ? "text-white/80 hover:text-white hover:bg-white/10"
-                                            : "text-foreground/80 hover:text-foreground hover:bg-foreground/6"
+                                          hoveredSubCat === subCategory.id
+                                            ? isTransparent
+                                              ? "text-white bg-white/10"
+                                              : "text-foreground bg-foreground/6"
+                                            : isTransparent
+                                              ? "text-white/80 hover:text-white hover:bg-white/10"
+                                              : "text-foreground/80 hover:text-foreground hover:bg-foreground/6"
                                         }`}
                                       >
                                         <p className="text-sm font-medium">{subCategory.title}</p>
@@ -461,37 +489,74 @@ export function Header() {
                                 </div>
                               </div>
 
-                              {/* More Categories Column */}
-                              {subCategories.length > 1 && (
-                                <div>
-                                  <p className={`text-xs font-semibold tracking-widest mb-3 sm:mb-4 ${isTransparent ? "text-white/40" : "text-foreground/40"}`}>
-                                    {subCategories.length > 3 ? "MORE" : "SKINCARE"}
+                              {/* Products — only once a sub category is hovered */}
+                              {hoveredSubCat && (
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ duration: 0.22, delay: 0.06 }}
+                                className="min-h-[16rem]"
+                              >
+                                <p className={`text-xs font-semibold tracking-widest mb-3 sm:mb-4 truncate ${isTransparent ? "text-white/40" : "text-foreground/40"}`}>
+                                  {subCategories.find((s: any) => s.id === hoveredSubCat)?.title?.toUpperCase() || "PRODUCTS"}
+                                </p>
+
+                                {navProductsLoading ? (
+                                  <div className="space-y-1">
+                                    {Array.from({ length: 4 }).map((_, i) => (
+                                      <div key={i} className="flex items-center gap-3 px-2 py-1.5">
+                                        <div className={`w-10 h-10 rounded-lg animate-pulse shrink-0 ${isTransparent ? "bg-white/10" : "bg-muted"}`} />
+                                        <div className="flex-1 space-y-1.5">
+                                          <div className={`h-3.5 rounded-full animate-pulse w-3/4 ${isTransparent ? "bg-white/10" : "bg-muted"}`} />
+                                          <div className={`h-3 rounded-full animate-pulse w-1/4 ${isTransparent ? "bg-white/10" : "bg-muted"}`} />
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : navProducts.length === 0 ? (
+                                  <p className={`text-xs px-2 py-3 ${isTransparent ? "text-white/40" : "text-foreground/40"}`}>
+                                    No products in this collection yet.
                                   </p>
-                                  <div className="space-y-2">
-                                    {subCategories.slice(Math.ceil(subCategories.length / 2)).map((subCategory: any, idx: number) => (
-                                      <motion.div
-                                        key={subCategory.id}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: (Math.ceil(subCategories.length / 2) + idx) * 0.05 }}
-                                      >
+                                ) : (
+                                  <div className="space-y-1">
+                                    {navProducts.map((product: any) => (
+                                      <div key={product.id}>
                                         <Link
-                                          href={`/products?subcategoryId=${subCategory.id}`}
-                                          className={`block px-2 sm:px-3 py-2 rounded-lg transition-all duration-200 group ${
+                                          href={`/products/${product.id}`}
+                                          className={`flex items-center gap-3 px-2 py-1.5 rounded-lg transition-all duration-200 group ${
                                             isTransparent
                                               ? "text-white/80 hover:text-white hover:bg-white/10"
                                               : "text-foreground/80 hover:text-foreground hover:bg-foreground/6"
                                           }`}
                                         >
-                                          <p className="text-sm font-medium">{subCategory.title}</p>
-                                          <p className={`text-xs ${isTransparent ? "text-white/40 group-hover:text-white/60" : "text-foreground/40 group-hover:text-foreground/60"}`}>
-                                            Explore collection
-                                          </p>
+                                          <span className={`w-10 h-10 rounded-lg overflow-hidden shrink-0 ${isTransparent ? "bg-white/10" : "bg-secondary/40"}`}>
+                                            <img
+                                              src={getImageUrl(product.image?.thumbnailURL || product.image?.url || product.images?.[0]?.image?.url)}
+                                              alt={product.title}
+                                              className="w-full h-full object-cover"
+                                            />
+                                          </span>
+                                          <span className="min-w-0 flex-1">
+                                            <span className="block text-sm font-medium truncate">{product.title}</span>
+                                            <span className={`block text-xs ${isTransparent ? "text-white/40" : "text-foreground/40"}`}>
+                                              ৳{product.onSale && product.salePrice ? product.salePrice : product.price}
+                                            </span>
+                                          </span>
                                         </Link>
-                                      </motion.div>
+                                      </div>
                                     ))}
                                   </div>
-                                </div>
+                                )}
+
+                                <Link
+                                  href={`/products?subcategoryId=${hoveredSubCat}`}
+                                  className={`inline-flex items-center gap-1 mt-3 px-2 text-xs font-medium ${
+                                    isTransparent ? "text-white/70 hover:text-white" : "text-primary hover:underline"
+                                  }`}
+                                >
+                                  View all products →
+                                </Link>
+                              </motion.div>
                               )}
                             </div>
                           </div>
@@ -521,14 +586,34 @@ export function Header() {
                 {/* Search */}
                 <NavSearch isTransparent={isTransparent} />
 
-                {/* Account — links to login or account page */}
-                <Link href={authUser ? "/account" : "/login"} aria-label={authUser ? "My account" : "Sign in"}>
+                {/* Account — signed in shows an initials avatar, signed out a plain icon */}
+                <Link
+                  href={authUser ? "/account" : "/login"}
+                  aria-label={authUser ? `My account — ${authUser.firstName} ${authUser.lastName}` : "Sign in"}
+                  title={authUser ? `${authUser.firstName} ${authUser.lastName}` : "Sign in"}
+                >
                   <motion.span
                     whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.92 }}
-                    className={`flex items-center justify-center p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`}
+                    className={
+                      authUser
+                        ? "flex items-center justify-center p-1"
+                        : `flex items-center justify-center p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`
+                    }
                   >
-                    <User className="h-5 w-5" />
+                    {authUser ? (
+                      <span
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold ring-2 transition-colors ${
+                          isTransparent
+                            ? "bg-white text-gray-900 ring-white/30"
+                            : "bg-primary text-primary-foreground ring-primary/20"
+                        }`}
+                      >
+                        {`${authUser.firstName?.[0] ?? ""}${authUser.lastName?.[0] ?? ""}`.toUpperCase() || "U"}
+                      </span>
+                    ) : (
+                      <User className="h-5 w-5" />
+                    )}
                   </motion.span>
                 </Link>
 

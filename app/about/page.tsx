@@ -135,25 +135,42 @@ export default function AboutPage() {
               <div className="text-center mb-12">
                 <h2 className="text-3xl md:text-4xl font-light text-foreground mb-4">Founder's Message</h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {testimonials.map((testimonial, index) => (
-                  <motion.div
-                    key={index} custom={index} initial="hidden" whileInView="visible"
-                    viewport={{ once: true, margin: "-60px" }} variants={fadeUp}
-                  >
-                    <Card className="h-full">
-                      <CardContent className="p-6">
-                        <p className="text-muted-foreground leading-relaxed mb-4 italic">"{testimonial.message}"</p>
-                        <div className="pt-4 border-t border-border">
-                          <p className="font-semibold text-foreground">
-                            {testimonial.author?.firstName} {testimonial.author?.lastName}
+              {/* A single message reads better centred than stranded in a 2-col grid */}
+              <div className={`grid gap-8 ${testimonials.length === 1 ? "max-w-2xl mx-auto" : "grid-cols-1 md:grid-cols-2"}`}>
+                {testimonials.map((testimonial, index) => {
+                  const author = testimonial.author
+                  // `author` is a Users relationship — it only populates for staff,
+                  // so public visitors get a bare id. Render the block only when
+                  // we actually have a name, otherwise we'd show an empty divider.
+                  const authorName =
+                    author && typeof author === "object"
+                      ? `${author.firstName ?? ""} ${author.lastName ?? ""}`.trim()
+                      : ""
+                  const isSingle = testimonials.length === 1
+
+                  return (
+                    <motion.div
+                      key={index} custom={index} initial="hidden" whileInView="visible"
+                      viewport={{ once: true, margin: "-60px" }} variants={fadeUp}
+                    >
+                      <Card className="h-full">
+                        <CardContent className={`p-6 sm:p-8 ${isSingle ? "text-center" : ""}`}>
+                          <p className="text-muted-foreground leading-relaxed italic">
+                            &ldquo;{testimonial.message}&rdquo;
                           </p>
-                          <p className="text-sm text-muted-foreground">{testimonial.author?.email}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
+                          {authorName && (
+                            <div className={`pt-4 mt-4 border-t border-border ${isSingle ? "inline-block px-6" : ""}`}>
+                              <p className="font-semibold text-foreground">{authorName}</p>
+                              {author && typeof author === "object" && author.email && (
+                                <p className="text-sm text-muted-foreground">{author.email}</p>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )
+                })}
               </div>
             </div>
           </div>

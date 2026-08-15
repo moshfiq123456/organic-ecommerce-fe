@@ -121,6 +121,35 @@ function OrderSuccessModal({ order, onClose }: { order: any; onClose: () => void
             </button>
           </div>
 
+          {/* Pre-order — payment is made after the order exists, using the
+              order number as the bKash reference. */}
+          {doc.orderType === "preorder" && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <p className="text-sm font-semibold text-foreground mb-2">Complete your payment</p>
+              <ol className="text-xs text-muted-foreground leading-relaxed space-y-1.5 list-decimal list-inside">
+                <li>
+                  Open bKash and <strong className="text-foreground">Send Money</strong> to{" "}
+                  <strong className="text-foreground">
+                    {process.env.NEXT_PUBLIC_BKASH_NUMBER || "01XXXXXXXXX"}
+                  </strong>
+                </li>
+                <li>
+                  Amount:{" "}
+                  <strong className="text-foreground">৳{doc.totalAmount ?? ""}</strong>
+                </li>
+                <li>
+                  In the <strong className="text-foreground">Reference</strong> field, enter your order
+                  number:{" "}
+                  <strong className="text-foreground font-mono">{doc.orderNumber}</strong>
+                </li>
+              </ol>
+              <p className="text-[11px] text-muted-foreground/80 mt-3 pt-3 border-t border-primary/20">
+                We&apos;ll verify your payment against this reference and confirm your order by email and
+                in your account.
+              </p>
+            </div>
+          )}
+
           {/* Info rows */}
           <div className="space-y-2.5 text-sm">
             {doc.customerName && (
@@ -207,6 +236,7 @@ export default function OrderPage() {
     city: "",
     notes: "",
     paymentMethod: "COD",
+    orderType: "cod",
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -280,6 +310,7 @@ export default function OrderPage() {
     setSubmitted(true)
 
     const required = ["firstName", "lastName", "email", "phone", "city"]
+
     const newErrors: Record<string, string> = {}
     required.forEach((field) => {
       const err = validateField(field, formData[field as keyof typeof formData] as string)
@@ -298,7 +329,8 @@ export default function OrderPage() {
         product: item.id,
         quantity: item.quantity,
       })),
-      paymentMethod: formData.paymentMethod,
+      orderType: formData.orderType as "cod" | "preorder",
+      paymentMethod: formData.orderType === "preorder" ? "BKASH" : "COD",
       transactionId: null,
       phone: formData.phone,
       email: formData.email,
@@ -535,6 +567,95 @@ export default function OrderPage() {
                   </div>
                 </section>
 
+                {/* ── 3. Payment ── */}
+                <section>
+                  <motion.div {...fadeUp(0.44)} className="flex items-center gap-3 mb-6">
+                    <span className="w-7 h-7 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium shrink-0">
+                      3
+                    </span>
+                    <h2 className="text-xs tracking-[0.2em] uppercase text-foreground/70 font-medium">
+                      Payment
+                    </h2>
+                  </motion.div>
+
+                  <motion.div {...fadeUp(0.46)} className="space-y-3">
+                    {/* Pay on delivery */}
+                    <label
+                      className={`flex gap-3 items-start p-4 rounded-xl border cursor-pointer transition-colors ${
+                        formData.orderType === "cod"
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="orderType"
+                        value="cod"
+                        checked={formData.orderType === "cod"}
+                        onChange={() => setFormData((p) => ({ ...p, orderType: "cod" }))}
+                        className="mt-1 accent-primary"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-foreground">Pay on Delivery</span>
+                        <span className="block text-xs text-muted-foreground mt-0.5">
+                          Pay with cash when your order arrives.
+                        </span>
+                      </span>
+                    </label>
+
+                    {/* Pre-order — pay first */}
+                    <label
+                      className={`flex gap-3 items-start p-4 rounded-xl border cursor-pointer transition-colors ${
+                        formData.orderType === "preorder"
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="orderType"
+                        value="preorder"
+                        checked={formData.orderType === "preorder"}
+                        onChange={() => setFormData((p) => ({ ...p, orderType: "preorder" }))}
+                        className="mt-1 accent-primary"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-foreground">
+                          Pre-order — Pay with bKash
+                        </span>
+                        <span className="block text-xs text-muted-foreground mt-0.5">
+                          Payment is made in advance. We confirm your order once the payment is verified.
+                        </span>
+                      </span>
+                    </label>
+
+                    {/* Pre-order payment instructions */}
+                    {formData.orderType === "preorder" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="rounded-xl border border-border bg-secondary/30 p-4 mt-1">
+                          <p className="text-xs font-medium text-foreground mb-1.5">How payment works</p>
+                          <ol className="text-xs text-muted-foreground leading-relaxed space-y-1 list-decimal list-inside">
+                            <li>Place your order now — you&apos;ll get an order number.</li>
+                            <li>
+                              Send <strong className="text-foreground">৳{total.toFixed(2)}</strong> to our bKash
+                              number{" "}
+                              <strong className="text-foreground">
+                                {process.env.NEXT_PUBLIC_BKASH_NUMBER || "01XXXXXXXXX"}
+                              </strong>
+                              , using your <strong className="text-foreground">order number as the reference</strong>.
+                            </li>
+                            <li>We verify the payment and confirm your order by email and in your account.</li>
+                          </ol>
+                        </div>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                </section>
+
                 {/* Submit */}
                 <motion.div {...fadeUp(0.49)}>
                   <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.97 }}>
@@ -704,12 +825,22 @@ export default function OrderPage() {
                   </AnimatePresence>
                 </div>
 
-                {/* Payment info */}
+                {/* Payment info — matches the selected payment method */}
                 <div className="px-5 pb-5">
                   <div className="bg-muted/40 border border-border/50 rounded-lg p-4">
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      <strong className="text-foreground/80">Cash on Delivery —</strong> We'll reach out after
-                      submission to confirm delivery details and arrange payment.
+                      {formData.orderType === "preorder" ? (
+                        <>
+                          <strong className="text-foreground/80">Pre-order (bKash) —</strong> Pay after placing
+                          your order, using your order number as the reference. We&apos;ll confirm once the
+                          payment is verified.
+                        </>
+                      ) : (
+                        <>
+                          <strong className="text-foreground/80">Cash on Delivery —</strong> We&apos;ll reach out
+                          after submission to confirm delivery details and arrange payment.
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>

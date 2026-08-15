@@ -59,6 +59,12 @@ const authSlice = createSlice({
       state.token = null
       persist(state)
     },
+    /** Merge profile changes into the signed-in user (keeps the same token). */
+    updateUser: (state, action: PayloadAction<Partial<AuthUser>>) => {
+      if (!state.user) return
+      state.user = { ...state.user, ...action.payload }
+      persist(state)
+    },
     hydrate: (state, action: PayloadAction<{ user: AuthUser; token: string } | null>) => {
       if (action.payload) {
         state.user = action.payload.user
@@ -69,5 +75,5 @@ const authSlice = createSlice({
   },
 })
 
-export const { setCredentials, clearCredentials, hydrate } = authSlice.actions
+export const { setCredentials, clearCredentials, hydrate, updateUser } = authSlice.actions
 export default authSlice.reducer

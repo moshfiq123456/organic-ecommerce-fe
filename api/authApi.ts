@@ -2,7 +2,7 @@ import { createApi } from "@reduxjs/toolkit/query/react"
 import { axiosBaseQuery } from "./baseQuery"
 import { wishlistApi } from "./wishlistApi"
 import { cartApi } from "./cartApi"
-import { setCredentials, clearCredentials, type AuthUser } from "@/slices/authSlice"
+import { setCredentials, clearCredentials, updateUser, type AuthUser } from "@/slices/authSlice"
 import { clearCart } from "@/slices/cartSlice"
 
 const PAYLOAD_URL = process.env.NEXT_PUBLIC_PAYLOAD_URL || "http://localhost:3000"
@@ -87,7 +87,36 @@ export const authApi = createApi({
         method: "GET",
       }),
     }),
+    /**
+     * Update the signed-in user's own profile. The backend only allows a user
+     * to update their own record (`isSelf`), and `role` is locked at field
+     * level, so this can't be used to change permissions.
+     */
+    updateProfile: builder.mutation<
+      { doc: AuthUser },
+      { id: number; firstName?: string; lastName?: string; phone?: string; address?: string }
+    >({
+      query: ({ id, ...data }) => ({
+        url: `/api/users/${id}`,
+        method: "PATCH",
+        data,
+      }),
+      onQueryStarted: async (_arg, { dispatch, queryFulfilled }) => {
+        try {
+          const { data } = await queryFulfilled
+          if (data?.doc) dispatch(updateUser(data.doc))
+        } catch {
+          // failure surfaced to the caller via the mutation result
+        }
+      },
+    }),
   }),
 })
 
-export const { useLoginMutation, useRegisterMutation, useLogoutMutation, useGetMeQuery } = authApi
+export const {
+  useLoginMutation,
+  useRegisterMutation,
+  useLogoutMutation,
+  useGetMeQuery,
+  useUpdateProfileMutation,
+} = authApi
