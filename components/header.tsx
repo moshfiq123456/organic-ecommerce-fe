@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useSelector, useDispatch } from "react-redux"
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from "framer-motion"
 import { ShoppingBag, Menu, X, Leaf, Minus, Plus, Trash2, ShoppingCart, Search, User, Heart, ChevronDown } from "lucide-react"
@@ -260,6 +260,17 @@ export function Header() {
   const brandName = menuDoc?.subDomain?.title ?? subdomainBrand.name
 
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  // Currently-selected subcategory (from /products?subcategoryId=…), used to
+  // mark the matching nav item active. Query params aren't in `pathname`.
+  const activeSubcategoryId = searchParams.get("subcategoryId")
+  // When the drawer opens on a subcategory page, expand Products so the
+  // selected subcategory is visible without an extra tap.
+  useEffect(() => {
+    if (isMenuOpen && activeSubcategoryId) {
+      setExpandedMobileLinks((prev) => (prev.has("/products") ? prev : new Set(prev).add("/products")))
+    }
+  }, [isMenuOpen, activeSubcategoryId])
   const dispatch = useDispatch()
   const authUser = useSelector((state: RootState) => state.auth.user)
   const { data: wishlistItems } = useGetWishlistQuery(undefined, { skip: !authUser })
@@ -932,23 +943,42 @@ export function Header() {
                       className="overflow-hidden"
                     >
                       <div className="pl-4 space-y-1 mt-1">
-                        <Link
-                          href="/products"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                        >
-                          All Products
-                        </Link>
-                        {subCategoriesData.docs.map((subCategory: any) => (
-                          <Link
-                            key={subCategory.id}
-                            href={`/products?subcategoryId=${subCategory.id}`}
-                            onClick={() => setIsMenuOpen(false)}
-                            className="flex items-center px-4 py-2 text-sm text-foreground/70 hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                          >
-                            {subCategory.title}
-                          </Link>
-                        ))}
+                        {(() => {
+                          const allActive = pathname === "/products" && !activeSubcategoryId
+                          return (
+                            <Link
+                              href="/products"
+                              onClick={() => setIsMenuOpen(false)}
+                              className={[
+                                "flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+                                allActive
+                                  ? "text-primary bg-primary/10"
+                                  : "text-primary/90 hover:bg-primary/10",
+                              ].join(" ")}
+                            >
+                              All Products
+                            </Link>
+                          )
+                        })()}
+                        {subCategoriesData.docs.map((subCategory: any) => {
+                          const subActive = activeSubcategoryId === String(subCategory.id)
+                          return (
+                            <Link
+                              key={subCategory.id}
+                              href={`/products?subcategoryId=${subCategory.id}`}
+                              onClick={() => setIsMenuOpen(false)}
+                              className={[
+                                "flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors",
+                                subActive
+                                  ? "text-primary font-medium bg-primary/8"
+                                  : "text-foreground/70 hover:text-foreground hover:bg-muted",
+                              ].join(" ")}
+                            >
+                              {subActive && <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
+                              {subCategory.title}
+                            </Link>
+                          )
+                        })}
                       </div>
                     </motion.div>
                   )}

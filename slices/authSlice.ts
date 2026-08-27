@@ -6,7 +6,7 @@ export interface AuthUser {
   firstName: string
   lastName: string
   phone: string
-  role: "client" | "editor" | "admin"
+  role: "client" | "employee" | "admin"
   [key: string]: any
 }
 

@@ -14,6 +14,13 @@ import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
 import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
 import { useClearCart } from "@/hooks/useClearCart"
 import { useCreateOrderMutation } from "@/api/orderApi"
+import {
+  useGetPaymentSettingsQuery,
+  defaultPaymentSettings,
+  fillInstruction,
+  type PaymentSettings,
+} from "@/api/paymentSettingsApi"
+import { useSubdomain } from "@/context/SubdomainContext"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -34,7 +41,15 @@ const errorVariants = {
 
 // ─── Order Success Modal ────────────────────────────────────────────────────────
 
-function OrderSuccessModal({ order, onClose }: { order: any; onClose: () => void }) {
+function OrderSuccessModal({
+  order,
+  onClose,
+  pay,
+}: {
+  order: any
+  onClose: () => void
+  pay?: PaymentSettings
+}) {
   const [copied, setCopied] = useState(false)
   const doc = order?.doc ?? order
 
@@ -121,31 +136,27 @@ function OrderSuccessModal({ order, onClose }: { order: any; onClose: () => void
             </button>
           </div>
 
-          {/* Pre-order — payment is made after the order exists, using the
-              order number as the bKash reference. */}
-          {doc.orderType === "preorder" && (
+          {/* Pre-order — payment happens after the order exists, using the order
+              number as the bKash reference. Steps come from Payment Settings. */}
+          {doc.orderType === "preorder" && (pay?.instructions?.length ?? 0) > 0 && (
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-              <p className="text-sm font-semibold text-foreground mb-2">Complete your payment</p>
+              <p className="text-sm font-semibold text-foreground mb-2">
+                {pay?.instructionsTitle || "Complete your payment"}
+              </p>
               <ol className="text-xs text-muted-foreground leading-relaxed space-y-1.5 list-decimal list-inside">
-                <li>
-                  Open bKash and <strong className="text-foreground">Send Money</strong> to{" "}
-                  <strong className="text-foreground">
-                    {process.env.NEXT_PUBLIC_BKASH_NUMBER || "01XXXXXXXXX"}
-                  </strong>
-                </li>
-                <li>
-                  Amount:{" "}
-                  <strong className="text-foreground">৳{doc.totalAmount ?? ""}</strong>
-                </li>
-                <li>
-                  In the <strong className="text-foreground">Reference</strong> field, enter your order
-                  number:{" "}
-                  <strong className="text-foreground font-mono">{doc.orderNumber}</strong>
-                </li>
+                {pay!.instructions!.map((it, i) => (
+                  <li key={i}>
+                    {fillInstruction(it.step, {
+                      amount: `৳${doc.totalAmount ?? ""}`,
+                      bkashNumber: pay?.bkashNumber || "",
+                      orderNumber: doc.orderNumber,
+                    })}
+                  </li>
+                ))}
               </ol>
               <p className="text-[11px] text-muted-foreground/80 mt-3 pt-3 border-t border-primary/20">
-                We&apos;ll verify your payment against this reference and confirm your order by email and
-                in your account.
+                Your payment reference is{" "}
+                <strong className="text-foreground font-mono">{doc.orderNumber}</strong>.
               </p>
             </div>
           )}
@@ -196,6 +207,18 @@ function OrderSuccessModal({ order, onClose }: { order: any; onClose: () => void
             </div>
           )}
 
+          {/* Delivery */}
+          {doc.deliveryCharge != null && (
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">
+                Delivery{doc.deliveryZone === "outside_dhaka" ? " (Outside Dhaka)" : doc.deliveryZone === "inside_dhaka" ? " (Inside Dhaka)" : ""}
+              </span>
+              <span className="font-medium text-foreground">
+                {doc.deliveryCharge === 0 ? "Free" : `৳${doc.deliveryCharge}`}
+              </span>
+            </div>
+          )}
+
           {/* Total */}
           {doc.totalAmount != null && (
             <div className="flex justify-between items-center border-t pt-3">
@@ -223,6 +246,14 @@ function OrderSuccessModal({ order, onClose }: { order: any; onClose: () => void
 
 export default function OrderPage() {
   const [createOrder, { isLoading }] = useCreateOrderMutation()
+
+  // Which payment options to show, and the bKash instructions, are configured
+  // per brand in the admin panel (Shop → Payment Settings).
+  const slug = useSubdomain()
+  const { data: paymentSettings } = useGetPaymentSettingsQuery(slug, { skip: !slug })
+  const pay = paymentSettings ?? defaultPaymentSettings
+  const codEnabled = pay.codEnabled !== false
+  const preorderEnabled = pay.preorderEnabled !== false
   const dispatch = useDispatch<AppDispatch>()
   const cartItems = useSelector((state: RootState) => state.cart.items)
   const handleClearCart = useClearCart()
@@ -234,10 +265,29 @@ export default function OrderPage() {
     phone: "",
     address: "",
     city: "",
+    deliveryZone: "inside_dhaka" as "inside_dhaka" | "outside_dhaka",
     notes: "",
     paymentMethod: "COD",
     orderType: "cod",
   })
+
+  // Delivery charges are configured per brand in the admin panel (Shop →
+  // Payment Settings → Delivery Charges).
+  const insideCharge = pay.deliveryInsideDhaka ?? 60
+  const outsideCharge = pay.deliveryOutsideDhaka ?? 120
+
+  // Keep the selection valid if an admin disables the currently selected method.
+  useEffect(() => {
+    setFormData((prev) => {
+      if (prev.orderType === "cod" && !codEnabled && preorderEnabled) {
+        return { ...prev, orderType: "preorder" }
+      }
+      if (prev.orderType === "preorder" && !preorderEnabled && codEnabled) {
+        return { ...prev, orderType: "cod" }
+      }
+      return prev
+    })
+  }, [codEnabled, preorderEnabled])
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState(false)
@@ -300,8 +350,10 @@ export default function OrderPage() {
   // ─── Totals ───────────────────────────────────────────────────────────────────
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const shipping  = cartItems.length === 0 ? 0 : subtotal > 50 ? 0 : 8
-  const total     = subtotal + shipping
+  const delivery = cartItems.length === 0
+    ? 0
+    : formData.deliveryZone === "outside_dhaka" ? outsideCharge : insideCharge
+  const total    = subtotal + delivery
 
   // ─── Submit ───────────────────────────────────────────────────────────────────
 
@@ -335,6 +387,7 @@ export default function OrderPage() {
       phone: formData.phone,
       email: formData.email,
       city: formData.city,
+      deliveryZone: formData.deliveryZone,
       address: formData.address,
       status: 1,
       notes: formData.notes || null,
@@ -388,7 +441,7 @@ export default function OrderPage() {
     <>
     <AnimatePresence>
       {successOrder && (
-        <OrderSuccessModal order={successOrder} onClose={() => setSuccessOrder(null)} />
+        <OrderSuccessModal order={successOrder} onClose={() => setSuccessOrder(null)} pay={pay} />
       )}
     </AnimatePresence>
     <div className="min-h-screen bg-background">
@@ -505,11 +558,11 @@ export default function OrderPage() {
 
                 <div className="border-t border-border" />
 
-                {/* Section 2 — Shipping Address */}
+                {/* Section 2 — Delivery Address */}
                 <section>
                   <div className="flex items-center gap-3 mb-6">
                     <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold">2</span>
-                    <h2 className="text-xs font-semibold tracking-[0.2em] uppercase text-muted-foreground">Shipping Address</h2>
+                    <h2 className="text-xs font-semibold tracking-[0.2em] uppercase text-muted-foreground">Delivery Address</h2>
                   </div>
 
                   <div className="space-y-5">
@@ -547,6 +600,41 @@ export default function OrderPage() {
                       <ErrorMsg name="city" />
                     </motion.div>
 
+                    {/* Delivery Area — sets the delivery charge */}
+                    <motion.div {...fadeUp(0.38)}>
+                      <Label className="text-xs tracking-wide uppercase text-muted-foreground mb-2 block">
+                        Delivery Area
+                      </Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {([
+                          { value: "inside_dhaka", label: "Inside Dhaka", charge: insideCharge },
+                          { value: "outside_dhaka", label: "Outside Dhaka", charge: outsideCharge },
+                        ] as const).map((zone) => (
+                          <label
+                            key={zone.value}
+                            className={`flex items-center justify-between gap-2 p-3.5 rounded-xl border cursor-pointer transition-colors ${
+                              formData.deliveryZone === zone.value
+                                ? "border-primary bg-primary/5"
+                                : "border-border hover:border-primary/40"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2.5 min-w-0">
+                              <input
+                                type="radio"
+                                name="deliveryZone"
+                                value={zone.value}
+                                checked={formData.deliveryZone === zone.value}
+                                onChange={() => setFormData((p) => ({ ...p, deliveryZone: zone.value }))}
+                                className="accent-primary shrink-0"
+                              />
+                              <span className="text-sm font-medium text-foreground truncate">{zone.label}</span>
+                            </span>
+                            <span className="text-sm font-semibold text-primary shrink-0">৳{zone.charge}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </motion.div>
+
                     {/* Notes */}
                     <motion.div {...fadeUp(0.42)}>
                       <Label htmlFor="notes" className="text-xs tracking-wide uppercase text-muted-foreground mb-2 block">
@@ -579,79 +667,99 @@ export default function OrderPage() {
                   </motion.div>
 
                   <motion.div {...fadeUp(0.46)} className="space-y-3">
-                    {/* Pay on delivery */}
-                    <label
-                      className={`flex gap-3 items-start p-4 rounded-xl border cursor-pointer transition-colors ${
-                        formData.orderType === "cod"
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/40"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="orderType"
-                        value="cod"
-                        checked={formData.orderType === "cod"}
-                        onChange={() => setFormData((p) => ({ ...p, orderType: "cod" }))}
-                        className="mt-1 accent-primary"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-foreground">Pay on Delivery</span>
-                        <span className="block text-xs text-muted-foreground mt-0.5">
-                          Pay with cash when your order arrives.
-                        </span>
-                      </span>
-                    </label>
-
-                    {/* Pre-order — pay first */}
-                    <label
-                      className={`flex gap-3 items-start p-4 rounded-xl border cursor-pointer transition-colors ${
-                        formData.orderType === "preorder"
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/40"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="orderType"
-                        value="preorder"
-                        checked={formData.orderType === "preorder"}
-                        onChange={() => setFormData((p) => ({ ...p, orderType: "preorder" }))}
-                        className="mt-1 accent-primary"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-foreground">
-                          Pre-order — Pay with bKash
-                        </span>
-                        <span className="block text-xs text-muted-foreground mt-0.5">
-                          Payment is made in advance. We confirm your order once the payment is verified.
-                        </span>
-                      </span>
-                    </label>
-
-                    {/* Pre-order payment instructions */}
-                    {formData.orderType === "preorder" && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        className="overflow-hidden"
+                    {/* Pay on delivery — shown only if enabled in the admin panel */}
+                    {codEnabled && (
+                      <label
+                        className={`flex gap-3 items-start p-4 rounded-xl border cursor-pointer transition-colors ${
+                          formData.orderType === "cod"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/40"
+                        }`}
                       >
-                        <div className="rounded-xl border border-border bg-secondary/30 p-4 mt-1">
-                          <p className="text-xs font-medium text-foreground mb-1.5">How payment works</p>
-                          <ol className="text-xs text-muted-foreground leading-relaxed space-y-1 list-decimal list-inside">
-                            <li>Place your order now — you&apos;ll get an order number.</li>
-                            <li>
-                              Send <strong className="text-foreground">৳{total.toFixed(2)}</strong> to our bKash
-                              number{" "}
-                              <strong className="text-foreground">
-                                {process.env.NEXT_PUBLIC_BKASH_NUMBER || "01XXXXXXXXX"}
-                              </strong>
-                              , using your <strong className="text-foreground">order number as the reference</strong>.
-                            </li>
-                            <li>We verify the payment and confirm your order by email and in your account.</li>
-                          </ol>
-                        </div>
-                      </motion.div>
+                        <input
+                          type="radio"
+                          name="orderType"
+                          value="cod"
+                          checked={formData.orderType === "cod"}
+                          onChange={() => setFormData((p) => ({ ...p, orderType: "cod" }))}
+                          className="mt-1 accent-primary"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-foreground">
+                            {pay.codTitle || "Pay on Delivery"}
+                          </span>
+                          {pay.codDescription && (
+                            <span className="block text-xs text-muted-foreground mt-0.5">
+                              {pay.codDescription}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    )}
+
+                    {/* Pre-order — shown only if enabled in the admin panel */}
+                    {preorderEnabled && (
+                      <label
+                        className={`flex gap-3 items-start p-4 rounded-xl border cursor-pointer transition-colors ${
+                          formData.orderType === "preorder"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/40"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="orderType"
+                          value="preorder"
+                          checked={formData.orderType === "preorder"}
+                          onChange={() => setFormData((p) => ({ ...p, orderType: "preorder" }))}
+                          className="mt-1 accent-primary"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-foreground">
+                            {pay.preorderTitle || "Pre-order — Pay with bKash"}
+                          </span>
+                          {pay.preorderDescription && (
+                            <span className="block text-xs text-muted-foreground mt-0.5">
+                              {pay.preorderDescription}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    )}
+
+                    {/* Instructions — authored in the admin panel */}
+                    {preorderEnabled &&
+                      formData.orderType === "preorder" &&
+                      (pay.instructions?.length ?? 0) > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="rounded-xl border border-border bg-secondary/30 p-4 mt-1">
+                            {pay.instructionsTitle && (
+                              <p className="text-xs font-medium text-foreground mb-1.5">
+                                {pay.instructionsTitle}
+                              </p>
+                            )}
+                            <ol className="text-xs text-muted-foreground leading-relaxed space-y-1 list-decimal list-inside">
+                              {pay.instructions!.map((it, i) => (
+                                <li key={i}>
+                                  {fillInstruction(it.step, {
+                                    amount: `৳${total.toFixed(2)}`,
+                                    bkashNumber: pay.bkashNumber || "",
+                                  })}
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        </motion.div>
+                      )}
+
+                    {!codEnabled && !preorderEnabled && (
+                      <p className="text-xs text-muted-foreground">
+                        No payment methods are available right now. Please contact us to place your order.
+                      </p>
                     )}
                   </motion.div>
                 </section>
@@ -791,29 +899,34 @@ export default function OrderPage() {
                             <span className="text-muted-foreground">Subtotal</span>
                             <span className="font-medium">৳{subtotal.toFixed(2)}</span>
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Shipping</span>
-                            <span className={`font-medium ${shipping === 0 ? "text-green-600 dark:text-green-400" : ""}`}>
-                              {shipping === 0 ? "Free" : `৳${shipping.toFixed(2)}`}
-                            </span>
+                          {/* Delivery — both rates shown; the selected area is applied to the total */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <Truck className="h-3.5 w-3.5" /> Delivery
+                            </div>
+                            {([
+                              { value: "inside_dhaka", label: "Inside Dhaka", charge: insideCharge },
+                              { value: "outside_dhaka", label: "Outside Dhaka", charge: outsideCharge },
+                            ] as const).map((zone) => {
+                              const active = formData.deliveryZone === zone.value
+                              return (
+                                <button
+                                  type="button"
+                                  key={zone.value}
+                                  onClick={() => setFormData((p) => ({ ...p, deliveryZone: zone.value }))}
+                                  className="flex w-full items-center justify-between pl-5 text-sm"
+                                >
+                                  <span className={`flex items-center gap-2 ${active ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${active ? "bg-primary" : "border border-border"}`} />
+                                    {zone.label}
+                                  </span>
+                                  <span className={active ? "text-foreground font-medium" : "text-muted-foreground"}>
+                                    {zone.charge === 0 ? "Free" : `৳${zone.charge.toFixed(2)}`}
+                                  </span>
+                                </button>
+                              )
+                            })}
                           </div>
-
-                          {/* Free shipping nudge */}
-                          <AnimatePresence>
-                            {subtotal > 0 && subtotal <= 50 && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-md px-2.5 py-1.5">
-                                  <Truck className="h-3 w-3 shrink-0" />
-                                  Add ৳{(50 - subtotal).toFixed(2)} more for free shipping
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
 
                           <div className="flex justify-between text-base font-semibold pt-2 border-t border-border">
                             <span>Total</span>
@@ -831,14 +944,19 @@ export default function OrderPage() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {formData.orderType === "preorder" ? (
                         <>
-                          <strong className="text-foreground/80">Pre-order (bKash) —</strong> Pay after placing
-                          your order, using your order number as the reference. We&apos;ll confirm once the
-                          payment is verified.
+                          <strong className="text-foreground/80">
+                            {pay.preorderTitle || "Pre-order (bKash)"} —
+                          </strong>{" "}
+                          {pay.preorderDescription ||
+                            "Pay after placing your order, using your order number as the reference."}
                         </>
                       ) : (
                         <>
-                          <strong className="text-foreground/80">Cash on Delivery —</strong> We&apos;ll reach out
-                          after submission to confirm delivery details and arrange payment.
+                          <strong className="text-foreground/80">
+                            {pay.codTitle || "Cash on Delivery"} —
+                          </strong>{" "}
+                          {pay.codDescription ||
+                            "We'll reach out after submission to confirm delivery details and arrange payment."}
                         </>
                       )}
                     </p>

@@ -14,6 +14,7 @@ import { supportApi } from '@/api/supportApi';
 import { aboutApi } from '@/api/aboutApi';
 import { faqApi } from '@/api/faqApi';
 import { notificationsApi } from '@/api/notificationsApi';
+import { paymentSettingsApi } from '@/api/paymentSettingsApi';
 import  cartReducer  from '@/slices/cartSlice';
 import authReducer from '@/slices/authSlice';
 // @/store/store.ts
@@ -40,6 +41,7 @@ export const store = configureStore({
     [aboutApi.reducerPath]: aboutApi.reducer,
     [faqApi.reducerPath]: faqApi.reducer,
     [notificationsApi.reducerPath]: notificationsApi.reducer,
+    [paymentSettingsApi.reducerPath]: paymentSettingsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -58,7 +60,8 @@ export const store = configureStore({
       supportApi.middleware,
       aboutApi.middleware,
       faqApi.middleware,
-      notificationsApi.middleware
+      notificationsApi.middleware,
+      paymentSettingsApi.middleware
     ),
 });
 

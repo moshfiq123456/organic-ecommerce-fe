@@ -3,12 +3,12 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import { useState } from "react"
 import {
   LogOut, Mail, Phone, MapPin, ShieldCheck, Loader2, Heart, ShoppingBag,
-  LifeBuoy, Package, ArrowRight, CalendarDays, Truck, Sparkles, ChevronRight,
+  LifeBuoy, Package, ArrowRight, CalendarDays, Truck, Sparkles, ChevronRight, ChevronDown,
   Pencil, Save, X,
 } from "lucide-react"
 
@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useGetWishlistQuery } from "@/api/wishlistApi"
 import { useGetUserTicketsQuery } from "@/api/supportApi"
 import { useGetNotificationsQuery, useMarkNotificationReadMutation } from "@/api/notificationsApi"
+import { useGetMyOrdersQuery } from "@/api/orderApi"
 import { getImageUrl } from "@/api/productsApi"
 import { Button } from "@/components/ui/button"
 import { RequireAuth } from "@/components/require-auth"
@@ -49,6 +50,16 @@ const statusStyles: Record<string, string> = {
   closed: "bg-muted text-muted-foreground",
 }
 
+const orderStatusStyles: Record<string, string> = {
+  pending: "bg-yellow-500/10 text-yellow-600",
+  confirmed: "bg-blue-500/10 text-blue-600",
+  processing: "bg-blue-500/10 text-blue-600",
+  shipped: "bg-indigo-500/10 text-indigo-600",
+  delivered: "bg-green-500/10 text-green-600",
+  completed: "bg-green-500/10 text-green-600",
+  cancelled: "bg-red-500/10 text-red-500",
+}
+
 const productImage = (p: any) =>
   getImageUrl(p?.image?.thumbnailURL || p?.image?.url || p?.images?.[0]?.image?.url)
 
@@ -61,6 +72,7 @@ function AccountContent() {
   const { data: wishlist } = useGetWishlistQuery()
   const { data: ticketData } = useGetUserTicketsQuery()
   const { data: notificationData } = useGetNotificationsQuery()
+  const { data: orders } = useGetMyOrdersQuery()
   const [markRead] = useMarkNotificationReadMutation()
 
   const notifications = notificationData?.docs ?? []
@@ -68,6 +80,7 @@ function AccountContent() {
 
   const [updateProfile, { isLoading: isSaving }] = useUpdateProfileMutation()
   const [isEditing, setIsEditing] = useState(false)
+  const [openOrderId, setOpenOrderId] = useState<number | null>(null)
   const [form, setForm] = useState({
     firstName: user.firstName ?? "",
     lastName: user.lastName ?? "",
@@ -294,6 +307,127 @@ function AccountContent() {
                 </div>
               )}
             </motion.div>
+
+            {/* Recent orders */}
+            {orders && orders.length > 0 && (
+              <motion.div custom={2} initial="hidden" animate="visible" variants={fadeUp}
+                className="bg-background rounded-2xl border border-border shadow-sm overflow-hidden"
+              >
+                <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+                  <h2 className="font-semibold text-foreground flex items-center gap-2">
+                    <Package className="w-4 h-4 text-primary" /> My Orders
+                  </h2>
+                  <span className="text-xs text-muted-foreground">
+                    {orders.length} order{orders.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="divide-y divide-border">
+                  {orders.map((o) => {
+                    const items = o.orderItems ?? []
+                    const itemCount = items.reduce((s, it) => s + (it.quantity ?? 0), 0)
+                    const code = o.status?.code ?? ""
+                    const subtotal = items.reduce((s, it) => s + (it.price ?? 0) * (it.quantity ?? 0), 0)
+                    const delivery = o.deliveryCharge ?? Math.max(0, (o.totalAmount ?? 0) - subtotal)
+                    const isOpen = openOrderId === o.id
+                    return (
+                      <div key={o.id}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenOrderId(isOpen ? null : o.id)}
+                          className="w-full px-6 py-3.5 flex items-center gap-3 text-left hover:bg-secondary/30 transition-colors"
+                        >
+                          <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              #{o.orderNumber}
+                              <span className="font-normal text-muted-foreground">
+                                {" "}· {itemCount} item{itemCount === 1 ? "" : "s"}
+                              </span>
+                            </p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {new Date(o.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                              {" · "}{o.paymentMethod}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-sm font-semibold text-primary">৳{o.totalAmount}</span>
+                            {o.status?.title && (
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${orderStatusStyles[code] ?? "bg-muted text-muted-foreground"}`}>
+                                {o.status.title}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+
+                        <AnimatePresence initial={false}>
+                          {isOpen && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.25, ease: "easeOut" }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-6 pb-4 pt-1 space-y-4 bg-secondary/20">
+                                {/* Items */}
+                                <div className="space-y-2 pt-3">
+                                  {items.map((it, i) => (
+                                    <div key={i} className="flex items-center justify-between gap-3 text-sm">
+                                      <span className="text-foreground truncate">
+                                        {it.product?.title ?? "Product"}
+                                        <span className="text-muted-foreground"> × {it.quantity}</span>
+                                      </span>
+                                      <span className="text-muted-foreground shrink-0">
+                                        ৳{(it.price ?? 0) * (it.quantity ?? 0)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Totals */}
+                                <div className="space-y-1.5 border-t border-border pt-3 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Subtotal</span>
+                                    <span className="text-foreground">৳{subtotal}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">
+                                      Delivery{o.deliveryZone ? ` (${o.deliveryZone === "outside_dhaka" ? "Outside Dhaka" : "Inside Dhaka"})` : ""}
+                                    </span>
+                                    <span className="text-foreground">{delivery === 0 ? "Free" : `৳${delivery}`}</span>
+                                  </div>
+                                  <div className="flex justify-between font-semibold pt-1.5 border-t border-border">
+                                    <span className="text-foreground">Total</span>
+                                    <span className="text-primary">৳{o.totalAmount}</span>
+                                  </div>
+                                </div>
+
+                                {/* Meta */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                  <div>
+                                    <p className="text-muted-foreground mb-0.5">Delivery to</p>
+                                    <p className="text-foreground break-words">
+                                      {o.address}{o.city ? `, ${o.city}` : ""}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-muted-foreground mb-0.5">Payment</p>
+                                    <p className="text-foreground capitalize">
+                                      {o.paymentMethod}
+                                      {o.paymentStatus ? ` · ${o.paymentStatus.replace(/_/g, " ")}` : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )
+                  })}
+                </div>
+              </motion.div>
+            )}
 
             {/* Notifications */}
             {notifications.length > 0 && (

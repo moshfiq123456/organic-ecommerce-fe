@@ -20,6 +20,8 @@ export interface CreateOrderPayload {
   phone: string
   email: string
   city: string
+  /** Delivery area the customer chose — the backend resolves the charge from it. */
+  deliveryZone: "inside_dhaka" | "outside_dhaka"
   address: string
   status: number
   notes: string | null
@@ -55,10 +57,33 @@ export interface OrderTrackResponse {
   phone: string
   email: string
   city: string
+  deliveryZone?: "inside_dhaka" | "outside_dhaka"
+  deliveryCharge?: number
   address: string
   notes: string | null
   totalAmount: number
   paymentMethod: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MyOrder {
+  id: number
+  orderNumber: string
+  orderItems: OrderItem[]
+  status: { id: number; title: string; code: string } | null
+  transactionId: string | null
+  customerName: string
+  phone: string
+  email: string
+  city: string
+  deliveryZone?: "inside_dhaka" | "outside_dhaka"
+  deliveryCharge?: number
+  address: string
+  totalAmount: number
+  paymentMethod: string
+  paymentStatus?: string
+  orderType?: string
   createdAt: string
   updatedAt: string
 }
@@ -76,6 +101,13 @@ export const ordersApi = createApi({
       }),
       invalidatesTags: ["Orders"],
     }),
+    getMyOrders: builder.query<MyOrder[], void>({
+      query: () => ({
+        url: "/api/orders/mine",
+        method: "GET",
+      }),
+      providesTags: ["Orders"],
+    }),
     trackOrder: builder.query<OrderTrackResponse, TrackOrderParams>({
       query: ({ orderNumber, phone }) => ({
         url: "/api/orders/track",
@@ -85,4 +117,4 @@ export const ordersApi = createApi({
   }),
 })
 
-export const { useCreateOrderMutation, useTrackOrderQuery } = ordersApi
+export const { useCreateOrderMutation, useTrackOrderQuery, useGetMyOrdersQuery } = ordersApi
