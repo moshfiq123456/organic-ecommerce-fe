@@ -43,13 +43,14 @@ function ProductSkeleton() {
 }
 
 // ── Product Section ───────────────────────────────────
-function ProductSection({ title, subtitle, products, isLoading, emptyMessage, onQuickView }: {
+function ProductSection({ title, subtitle, products, isLoading, emptyMessage, onQuickView, cardVariant }: {
   title: string
   subtitle: string
   products: any[]
   isLoading: boolean
   emptyMessage?: string
   onQuickView?: (id: number) => void
+  cardVariant?: "default" | "featured"
 }) {
   return (
     <div>
@@ -72,7 +73,7 @@ function ProductSection({ title, subtitle, products, isLoading, emptyMessage, on
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} onQuickView={onQuickView} />
+            <ProductCard key={product.id} product={product} onQuickView={onQuickView} variant={cardVariant} />
           ))}
         </div>
       )}
@@ -326,6 +327,7 @@ export default function HomePage() {
             isLoading={featuredLoading}
             emptyMessage="No featured products at the moment. Check back soon!"
             onQuickView={openQuickView}
+            cardVariant="featured"
           />
           <div className="text-center mt-10">
             <Link href="/products">

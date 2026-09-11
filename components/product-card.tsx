@@ -214,11 +214,16 @@ export function useQuickView() {
 export function ProductCard({
   product,
   onQuickView,
+  variant,
 }: {
   product: any
   onQuickView?: (id: number) => void
+  /** In the "featured" section a featured product shows a "Featured" badge
+   * instead of "Sale" (the discounted price still shows). */
+  variant?: "default" | "featured"
 }) {
   const [hovered, setHovered] = useState(false)
+  const showFeaturedBadge = variant === "featured" && product.productType === "featured"
   const images = productImages(product)
   const [activeImage, setActiveImage] = useState(0)
   const goImage = (dir: number) =>
@@ -359,13 +364,18 @@ export function ProductCard({
             Out of Stock
           </span>
         )}
-        {product.onSale && product.stockIn > 0 && (
+        {showFeaturedBadge && product.stockIn > 0 && (
+          <span className="absolute top-2.5 left-2.5 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
+            Featured
+          </span>
+        )}
+        {!showFeaturedBadge && product.onSale && product.stockIn > 0 && (
           <span className="absolute top-2.5 left-2.5 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
             Sale
           </span>
         )}
         {product.preOrder && (
-          <span className={`absolute text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/90 text-white ${product.onSale ? "top-8 left-2.5" : "top-2.5 left-2.5"}`}>
+          <span className={`absolute text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/90 text-white ${(showFeaturedBadge || product.onSale) ? "top-8 left-2.5" : "top-2.5 left-2.5"}`}>
             Pre-order · {product.preOrderTime} {product.preOrderTimeUnit}s
           </span>
         )}
