@@ -1,9 +1,9 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
-import { ShoppingCart, Eye, X, Loader2, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react"
+import { ShoppingCart, Eye, X, Loader2, ChevronLeft, ChevronRight, ArrowRight, Images as ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WishlistButton } from "@/components/wishlist-button"
 import { useGetProductByIdQuery, getImageUrl } from "@/api/productsApi"
@@ -21,6 +21,15 @@ export const cardVariants = {
 
 const productImage = (product: any) =>
   getImageUrl(product?.image?.thumbnailURL || product?.image?.url || product?.images?.[0]?.image?.url)
+
+/** Every image on the product, in order — a product can have up to 6. */
+const productImages = (product: any): string[] => {
+  const fromArray = (product?.images ?? [])
+    .map((entry: any) => entry?.image?.url || entry?.image?.thumbnailURL)
+    .filter(Boolean)
+    .map((url: string) => getImageUrl(url))
+  return fromArray.length > 0 ? fromArray : [productImage(product)]
+}
 
 /** Shared "add to cart" payload for a product. */
 const toCartItem = (product: any, quantity = 1) => ({
@@ -210,6 +219,19 @@ export function ProductCard({
   onQuickView?: (id: number) => void
 }) {
   const [hovered, setHovered] = useState(false)
+  const images = productImages(product)
+  const [activeImage, setActiveImage] = useState(0)
+  const goImage = (dir: number) =>
+    setActiveImage((i) => (i + dir + images.length) % images.length)
+
+  // Show a "See more" that opens Quick View only when the 2-line clamp is
+  // actually hiding part of the description — keeps card heights uniform.
+  const descRef = useRef<HTMLParagraphElement>(null)
+  const [descClamped, setDescClamped] = useState(false)
+  useEffect(() => {
+    const el = descRef.current
+    if (el) setDescClamped(el.scrollHeight > el.clientHeight + 1)
+  }, [product.description])
   const cartItems = useSelector((state: RootState) => state.cart.items)
   const currentQty = cartItems.find((item) => item.id === product.id)?.quantity || 0
 
@@ -240,15 +262,60 @@ export function ProductCard({
       onHoverEnd={() => setHovered(false)}
       className="bg-card rounded-2xl overflow-hidden border border-border shadow-sm hover:shadow-xl transition-shadow duration-300 flex flex-col"
     >
-      {/* Image */}
+      {/* Image — a second image (if any) cross-fades in on hover */}
       <div className="relative aspect-square overflow-hidden bg-secondary/20 shrink-0">
-        <motion.img
-          src={productImage(product)}
-          alt={product.title}
-          animate={{ scale: hovered ? 1.08 : 1 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full h-full object-cover"
-        />
+        <AnimatePresence mode="wait">
+          <motion.img
+            key={activeImage}
+            src={images[activeImage] ?? images[0]}
+            alt={product.title}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, scale: hovered ? 1.06 : 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ opacity: { duration: 0.25 }, scale: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </AnimatePresence>
+
+        {/* Prev / next — appear on hover when there's more than one image */}
+        {images.length > 1 && (
+          <AnimatePresence>
+            {hovered && (
+              <>
+                <motion.button
+                  type="button"
+                  aria-label="Previous image"
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -6 }}
+                  onClick={(e) => { e.preventDefault(); goImage(-1) }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-black/45 text-white flex items-center justify-center hover:bg-black/65 backdrop-blur-sm"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </motion.button>
+                <motion.button
+                  type="button"
+                  aria-label="Next image"
+                  initial={{ opacity: 0, x: 6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 6 }}
+                  onClick={(e) => { e.preventDefault(); goImage(1) }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-black/45 text-white flex items-center justify-center hover:bg-black/65 backdrop-blur-sm"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </motion.button>
+              </>
+            )}
+          </AnimatePresence>
+        )}
+
+        {/* Image count badge */}
+        {images.length > 1 && (
+          <span className="absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+            <ImageIcon className="h-2.5 w-2.5" />
+            {activeImage + 1}/{images.length}
+          </span>
+        )}
 
         {/* Hover overlay — quick view */}
         {onQuickView && (
@@ -304,6 +371,25 @@ export function ProductCard({
         )}
       </div>
 
+      {/* Thumbnail strip — only when the product has more than one image */}
+      {images.length > 1 && (
+        <div className="flex gap-1.5 px-2.5 sm:px-3 pt-2.5">
+          {images.map((src, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={(e) => { e.preventDefault(); setActiveImage(i) }}
+              aria-label={`View image ${i + 1}`}
+              className={`w-9 h-9 sm:w-11 sm:h-11 rounded-md overflow-hidden border-2 transition-colors shrink-0 ${
+                i === activeImage ? "border-primary" : "border-transparent hover:border-border"
+              }`}
+            >
+              <img src={src} alt="" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Content */}
       <div className="p-2.5 sm:p-4 flex flex-col flex-1">
         <div className="flex items-start justify-between gap-1 mb-2">
@@ -323,9 +409,31 @@ export function ProductCard({
         </div>
 
         <h3 className="font-semibold text-foreground text-xs sm:text-sm mb-1 line-clamp-2">{product.title}</h3>
-        <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
-          {product.description || "No description available"}
-        </p>
+        <div className="flex-1 min-h-0">
+          <p
+            ref={descRef}
+            className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed line-clamp-2"
+          >
+            {product.description || "No description available"}
+          </p>
+          {descClamped &&
+            (onQuickView ? (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); onQuickView(product.id) }}
+                className="mt-0.5 text-[11px] font-medium text-primary hover:underline"
+              >
+                See more
+              </button>
+            ) : (
+              <Link
+                href={`/products/${product.id}`}
+                className="mt-0.5 inline-block text-[11px] font-medium text-primary hover:underline"
+              >
+                See more
+              </Link>
+            ))}
+        </div>
 
         <div className="flex items-center gap-1.5 mt-1.5">
           <span className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-medium ${product.stockIn > 0 ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>

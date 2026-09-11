@@ -176,16 +176,10 @@ export function HeroCarousel() {
                 className="flex items-center justify-center md:justify-start gap-3 mb-7"
               >
                 {heroSlides.length > 1 && (
-                  <>
-                    <span className="text-white/40 text-xs tracking-[0.3em] uppercase tabular-nums">
-                      {String(page + 1).padStart(2, "0")} / {String(heroSlides.length).padStart(2, "0")}
-                    </span>
-                    <div className="h-px w-10 bg-white/20" />
-                  </>
+                  <span className="text-white/40 text-xs tracking-[0.3em] uppercase tabular-nums">
+                    {String(page + 1).padStart(2, "0")} / {String(heroSlides.length).padStart(2, "0")}
+                  </span>
                 )}
-                <span className="text-white/40 text-xs tracking-[0.3em] uppercase">
-                  Pure Botanics
-                </span>
               </motion.div>
 
               {/* Oversized headline */}

@@ -390,7 +390,7 @@ export function Header() {
 
               {/* ── Desktop Nav ── */}
               <nav
-                className="hidden md:flex items-center gap-0.5"
+                className="hidden lg:flex items-center gap-0.5"
               >
                 {navLinks.map((link, i) => {
                   const isActive = pathname === link.href
@@ -684,7 +684,7 @@ export function Header() {
                 <motion.button
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  className={`md:hidden p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`}
+                  className={`lg:hidden p-2.5 rounded-xl transition-colors ${isTransparent ? "text-white hover:bg-white/10" : "hover:bg-foreground/6"}`}
                   onClick={() => setIsMenuOpen((v) => !v)}
                   aria-label="Toggle menu"
                 >

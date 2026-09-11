@@ -170,13 +170,15 @@ export const productsApi = createApi({
         maxPrice?: number;
         productType?: string;
         onSale?: boolean;
+        sort?: string;
       }
     >({
-      query: ({ page = 1, limit = 10, categoryId, subcategoryIds, q, categoryCode, minPrice, maxPrice, productType, onSale } = {}) => {
+      query: ({ page = 1, limit = 10, categoryId, subcategoryIds, q, categoryCode, minPrice, maxPrice, productType, onSale, sort } = {}) => {
         const where = buildWhereClause(categoryId, subcategoryIds, q, categoryCode, minPrice, maxPrice, productType, onSale);
 
         const queryParams: Record<string, any> = { page, limit };
         if (where) queryParams.where = where;
+        if (sort) queryParams.sort = sort;
 
         const queryString = qs.stringify(queryParams, { encode: true });
 

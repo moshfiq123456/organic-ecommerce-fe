@@ -15,11 +15,19 @@ import { useSubdomain } from "@/context/SubdomainContext"
 import { useDispatch, useSelector } from "react-redux"
 import { AppDispatch, RootState } from "@/store/store"
 import { useGetProductsQuery, useGetProductByIdQuery, getImageUrl } from "@/api/productsApi"
+import { useGetSubCategoriesQuery } from "@/api/categories"
 import { useAddToCart } from "@/hooks/useAddToCart"
 import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
 import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
 import { WishlistButton } from "@/components/wishlist-button"
 import { ProductCard, useQuickView } from "@/components/product-card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const MAX_PRICE = 1000
 
@@ -97,15 +105,29 @@ export default function ProductsPage() {
   // Fetch products — filtered by tenant slug via subCategory.category.code
   // `isFetching` is true for every refetch (incl. filter changes); `isLoading`
   // is only true on the very first load.
+  const PAGE_SIZE = 20
+  const [page, setPage] = useState(1)
+
+  // Sort control — maps to Payload's `sort` param.
+  const SORT_OPTIONS = [
+    { value: "-createdAt", label: "Newest" },
+    { value: "price", label: "Price: Low to High" },
+    { value: "-price", label: "Price: High to Low" },
+    { value: "title", label: "Name: A to Z" },
+    { value: "-title", label: "Name: Z to A" },
+  ]
+  const [sort, setSort] = useState("-createdAt")
+
   const { data: productsData, error, isLoading, isFetching } = useGetProductsQuery(
     {
-      page: 1,
-      limit: 100,
+      page,
+      limit: PAGE_SIZE,
       categoryCode: slug,
       subcategoryIds: selectedSubcategoryIds.length > 0 ? selectedSubcategoryIds : undefined,
       q: debouncedSearch || undefined,
       minPrice: debouncedPrice[0] > 0 ? debouncedPrice[0] : undefined,
       maxPrice: debouncedPrice[1] < MAX_PRICE ? debouncedPrice[1] : undefined,
+      sort,
     },
     { skip: !slug }
   )
@@ -116,18 +138,16 @@ export default function ProductsPage() {
   if (productsData) lastProductsData.current = productsData
   const displayData = productsData ?? lastProductsData.current
 
-  // Extract available subcategories from products
-  const availableSubcategories = useMemo(() => {
-    if (!displayData?.docs) return []
-    const subcats = new Map<number, { id: number; title: string }>()
-    displayData.docs.forEach((product) => {
-      const subcat = product.subCategory
-      if (!subcats.has(subcat.id)) {
-        subcats.set(subcat.id, { id: subcat.id, title: subcat.title })
-      }
-    })
-    return Array.from(subcats.values())
-  }, [displayData])
+  // Sub-category filter options — from the brand's full sub-category list, so
+  // they aren't limited to whatever happens to be on the current page.
+  const { data: subCategoriesData } = useGetSubCategoriesQuery(
+    { categoryCode: slug },
+    { skip: !slug }
+  )
+  const availableSubcategories = useMemo(
+    () => (subCategoriesData?.docs ?? []).map((s: any) => ({ id: s.id, title: s.title })),
+    [subCategoriesData]
+  )
 
   // Initialize subcategory from URL params
   useEffect(() => {
@@ -135,7 +155,23 @@ export default function ProductsPage() {
     if (subcategoryParam) setSelectedSubcategoryIds([Number(subcategoryParam)])
   }, [searchParams])
 
+  // Any filter/search/price change should return to the first page.
+  useEffect(() => {
+    setPage(1)
+  }, [slug, selectedSubcategoryIds, debouncedSearch, debouncedPrice, sort])
+
+  // Bring the grid back into view when the page changes.
+  const didMountPage = useRef(false)
+  useEffect(() => {
+    if (!didMountPage.current) { didMountPage.current = true; return }
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [page])
+
   const filteredProducts = displayData?.docs ?? []
+  const totalDocs = displayData?.totalDocs ?? 0
+  const totalPages = displayData?.totalPages ?? 1
+  const rangeStart = totalDocs === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const rangeEnd = Math.min(page * PAGE_SIZE, totalDocs)
 
   const toggleSubcategory = (subcategoryId: number) => {
     setSelectedSubcategoryIds((prev) =>
@@ -201,7 +237,6 @@ export default function ProductsPage() {
     )
   }
 
-  const totalProducts = productsData?.docs?.length || 0
 
   return (
     <div className="min-h-screen bg-background">
@@ -379,17 +414,38 @@ export default function ProductsPage() {
               {/* Results Header with Filter Button for Mobile */}
               <div className="flex justify-between items-center mb-6 gap-4">
                 <div className="text-sm text-muted-foreground">
-                  Showing {filteredProducts.length} of {totalProducts} products
+                  {totalDocs === 0 ? "No products" : `Showing ${rangeStart}–${rangeEnd} of ${totalDocs} products`}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDrawerOpen(true)}
-                  className="lg:hidden flex items-center gap-2 bg-transparent"
-                >
-                  <Filter className="h-4 w-4" />
-                  Filters
-                </Button>
+
+                <div className="flex items-center gap-2">
+                  {/* Sort */}
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline text-sm text-muted-foreground">Sort by</span>
+                    <Select value={sort} onValueChange={setSort}>
+                      <SelectTrigger
+                        aria-label="Sort products"
+                        className="h-9 w-[168px] rounded-lg text-sm bg-background"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent align="end">
+                        {SORT_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsDrawerOpen(true)}
+                    className="lg:hidden flex items-center gap-2 bg-transparent"
+                  >
+                    <Filter className="h-4 w-4" />
+                    Filters
+                  </Button>
+                </div>
               </div>
 
               {/* Products Grid */}
@@ -434,6 +490,55 @@ export default function ProductsPage() {
                       ))}
                     </AnimatePresence>
                   </motion.div>
+                )}
+
+                {/* Pagination — only when there is more than one page */}
+                {totalPages > 1 && (
+                  <div className="mt-10 flex items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page <= 1 || isFetching}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className="gap-1"
+                    >
+                      <ChevronLeft className="h-4 w-4" /> Prev
+                    </Button>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((n) => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
+                      .reduce<(number | "…")[]>((acc, n, idx, arr) => {
+                        if (idx > 0 && n - (arr[idx - 1] as number) > 1) acc.push("…")
+                        acc.push(n)
+                        return acc
+                      }, [])
+                      .map((n, i) =>
+                        n === "…" ? (
+                          <span key={`gap-${i}`} className="px-2 text-muted-foreground">…</span>
+                        ) : (
+                          <Button
+                            key={n}
+                            variant={n === page ? "default" : "outline"}
+                            size="sm"
+                            disabled={isFetching}
+                            onClick={() => setPage(n)}
+                            className="w-9 px-0"
+                          >
+                            {n}
+                          </Button>
+                        )
+                      )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages || isFetching}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className="gap-1"
+                    >
+                      Next <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>

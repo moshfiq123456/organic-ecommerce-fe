@@ -284,7 +284,7 @@ export function Footer() {
           whileInView="visible"
           viewport={viewport}
         >
-          <p>© 2025 La Luminosité. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} {slug === "just-healthy" ? "Just Healthy" : "La Luminosité"}. All rights reserved.</p>
           <div className="flex items-center gap-5">
             {["Privacy", "Terms", "Cookies"].map((item) => (
               <span key={item} className="cursor-not-allowed opacity-40">{item}</span>
