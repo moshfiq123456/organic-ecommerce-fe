@@ -274,8 +274,13 @@ export function Header() {
   const dispatch = useDispatch()
   const authUser = useSelector((state: RootState) => state.auth.user)
   const { data: wishlistItems } = useGetWishlistQuery(undefined, { skip: !authUser })
-  const wishlistCount = authUser ? (wishlistItems?.length ?? 0) : 0
-  const cartItems = useSelector((state: RootState) => state.cart.items)
+  // Each brand (subdomain) shows only its own cart & wishlist, even though the
+  // account is shared. Scope everything by the current brand's category `code`.
+  const wishlistCount = authUser
+    ? (wishlistItems?.filter((w: any) => w.product?.subCategory?.category?.code === slug).length ?? 0)
+    : 0
+  const allCartItems = useSelector((state: RootState) => state.cart.items)
+  const cartItems = allCartItems.filter((item) => item.categoryCode === slug)
   const addSeq = useSelector((state: RootState) => state.cart.addSeq ?? 0)
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)

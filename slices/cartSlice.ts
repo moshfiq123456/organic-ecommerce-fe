@@ -5,6 +5,9 @@ export interface CartItem {
   name: string
   price: number
   quantity: number
+  /** Brand this product belongs to (its category `code`, e.g. "just-healthy").
+   * Used to keep each brand's cart separate on its own subdomain. */
+  categoryCode?: string
   [key: string]: any
 }
 
@@ -42,6 +45,12 @@ const cartSlice = createSlice({
     removeFromCart: (state, action: PayloadAction<number>) => {
       state.items = state.items.filter((item) => item.id !== action.payload)
     },
+    // Remove a set of items by product id — used after checkout to clear only
+    // the ordered (current-brand) items, leaving the other brand's cart intact.
+    removeItemsByIds: (state, action: PayloadAction<number[]>) => {
+      const ids = new Set(action.payload)
+      state.items = state.items.filter((item) => !ids.has(item.id))
+    },
     updateQuantity: (
       state,
       action: PayloadAction<{ id: number; quantity: number }>
@@ -59,12 +68,19 @@ const cartSlice = createSlice({
         price: item.itemPrice,
         quantity: item.quantity,
         dbId: item.id,
+        categoryCode: item.product?.subCategory?.category?.code,
       }))
     },
   },
 })
 
-export const { addToCart, removeFromCart, updateQuantity, clearCart, syncCartFromBackend } =
-  cartSlice.actions
+export const {
+  addToCart,
+  removeFromCart,
+  removeItemsByIds,
+  updateQuantity,
+  clearCart,
+  syncCartFromBackend,
+} = cartSlice.actions
 
 export default cartSlice.reducer

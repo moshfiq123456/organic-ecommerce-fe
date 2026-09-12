@@ -210,6 +210,7 @@ export default function ProductsPage() {
       price: product.price,
       quantity: product.quantity || 1,
       image: getImageUrl(imageUrl),
+      categoryCode: (product as any).subCategory?.category?.code,
     })
   }
 

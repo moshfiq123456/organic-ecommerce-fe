@@ -25,7 +25,9 @@ export const wishlistApi = createApi({
       query: () => ({
         url: "/api/wishlists",
         method: "GET",
-        params: { limit: 100, depth: 2 },
+        // depth 3 so product → subCategory → category (with `code`) is populated,
+        // used to show each brand's wishlist separately.
+        params: { limit: 100, depth: 3 },
       }),
       transformResponse: (response: WishlistResponse) => response.docs,
       providesTags: (result) =>

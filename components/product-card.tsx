@@ -38,6 +38,7 @@ const toCartItem = (product: any, quantity = 1) => ({
   price: product.onSale && product.salePrice ? product.salePrice : product.price,
   quantity,
   image: productImage(product),
+  categoryCode: product?.subCategory?.category?.code,
 })
 
 /* ─────────────────────────── Quick View Modal ─────────────────────────── */

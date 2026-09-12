@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Minus, Plus, X, Loader2, AlertCircle, ShoppingBag, Truck, CheckCircle2, Package, Phone, MapPin, Copy, Check } from "lucide-react"
 import { useRemoveFromCart } from "@/hooks/useRemoveFromCart"
 import { useUpdateCartQuantity } from "@/hooks/useUpdateCartQuantity"
-import { useClearCart } from "@/hooks/useClearCart"
+import { removeItemsByIds } from "@/slices/cartSlice"
 import { useCreateOrderMutation } from "@/api/orderApi"
 import {
   useGetPaymentSettingsQuery,
@@ -255,8 +255,11 @@ export default function OrderPage() {
   const codEnabled = pay.codEnabled !== false
   const preorderEnabled = pay.preorderEnabled !== false
   const dispatch = useDispatch<AppDispatch>()
-  const cartItems = useSelector((state: RootState) => state.cart.items)
-  const handleClearCart = useClearCart()
+  // Only the current brand's items are part of this brand's checkout — the
+  // other brand's cart (shared account) is left untouched.
+  const allCartItems = useSelector((state: RootState) => state.cart.items)
+  const cartItems = allCartItems.filter((item) => item.categoryCode === slug)
+  const authUser = useSelector((state: RootState) => state.auth.user)
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -381,6 +384,10 @@ export default function OrderPage() {
         product: item.id,
         quantity: item.quantity,
       })),
+      // Link the order to the signed-in shopper so it appears in their account
+      // history and their cart is cleared server-side. Guests send nothing.
+      ...(authUser?.id ? { user: authUser.id } : {}),
+      orderSource: "website",
       orderType: formData.orderType as "cod" | "preorder",
       paymentMethod: formData.orderType === "preorder" ? "BKASH" : "COD",
       transactionId: null,
@@ -397,7 +404,9 @@ export default function OrderPage() {
     try {
       const res = await createOrder(payload).unwrap()
       setSuccessOrder(res)
-      handleClearCart()
+      // Remove only the items that were just ordered (this brand's items). The
+      // backend clears the matching cart rows; the other brand's cart is kept.
+      dispatch(removeItemsByIds(cartItems.map((item) => item.id)))
     } catch (error) {
       console.error("ORDER FAILED ❌", error)
       toast.error("Failed to place order", {

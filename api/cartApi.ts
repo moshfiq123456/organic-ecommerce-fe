@@ -29,7 +29,9 @@ export const cartApi = createApi({
       query: () => ({
         url: "/api/carts",
         method: "GET",
-        params: { limit: 100, depth: 2, where: { status: { equals: "active" } } },
+        // depth 3 so product → subCategory → category (with `code`) is populated,
+        // which is how each item is tagged to its brand for per-brand carts.
+        params: { limit: 100, depth: 3, where: { status: { equals: "active" } } },
       }),
       transformResponse: (response: CartResponse) => response.docs,
       providesTags: (result) =>

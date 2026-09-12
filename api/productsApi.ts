@@ -176,7 +176,9 @@ export const productsApi = createApi({
       query: ({ page = 1, limit = 10, categoryId, subcategoryIds, q, categoryCode, minPrice, maxPrice, productType, onSale, sort } = {}) => {
         const where = buildWhereClause(categoryId, subcategoryIds, q, categoryCode, minPrice, maxPrice, productType, onSale);
 
-        const queryParams: Record<string, any> = { page, limit };
+        // depth 2 populates subCategory → category (with `code`) so cart items
+        // can be tagged to their brand for per-brand carts.
+        const queryParams: Record<string, any> = { page, limit, depth: 2 };
         if (where) queryParams.where = where;
         if (sort) queryParams.sort = sort;
 
@@ -192,6 +194,7 @@ export const productsApi = createApi({
     getProductById: builder.query<Product, number>({
       query: (id) => ({
         url: `/api/products/${id}`,
+        params: { depth: 2 },
       }),
       providesTags: (_result, _error, id) => [{ type: "Products", id }],
     }),
@@ -204,7 +207,7 @@ export const productsApi = createApi({
             { id: { not_equals: excludeId } },
           ],
         };
-        const queryString = qs.stringify({ where, limit: 4 }, { encode: true });
+        const queryString = qs.stringify({ where, limit: 4, depth: 2 }, { encode: true });
         return { url: `/api/products?${queryString}` };
       },
     }),
@@ -217,7 +220,7 @@ export const productsApi = createApi({
             { id: { not_equals: excludeId } },
           ],
         };
-        const queryString = qs.stringify({ where, limit: 4 }, { encode: true });
+        const queryString = qs.stringify({ where, limit: 4, depth: 2 }, { encode: true });
         return { url: `/api/products?${queryString}` };
       },
     }),

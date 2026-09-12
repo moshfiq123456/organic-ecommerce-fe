@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useGetWishlistQuery } from "@/api/wishlistApi"
+import { useSubdomain } from "@/context/SubdomainContext"
 import { useGetUserTicketsQuery } from "@/api/supportApi"
 import { useGetNotificationsQuery, useMarkNotificationReadMutation } from "@/api/notificationsApi"
 import { useGetMyOrdersQuery } from "@/api/orderApi"
@@ -66,21 +67,45 @@ const productImage = (p: any) =>
 function AccountContent() {
   const router = useRouter()
   const user = useSelector((state: RootState) => state.auth.user)!
-  const cartItems = useSelector((state: RootState) => state.cart.items)
+  // Cart & wishlist are shown per brand (subdomain), even though the account is shared.
+  const slug = useSubdomain()
+  const allCartItems = useSelector((state: RootState) => state.cart.items)
+  const cartItems = allCartItems.filter((item) => item.categoryCode === slug)
   const [logout, { isLoading }] = useLogoutMutation()
 
   const { data: wishlist } = useGetWishlistQuery()
   const { data: ticketData } = useGetUserTicketsQuery()
   const { data: notificationData } = useGetNotificationsQuery()
-  const { data: orders } = useGetMyOrdersQuery()
+  const { data: ordersData } = useGetMyOrdersQuery()
+  // Show only this brand's orders (an order carries its populated categories).
+  const orders = (ordersData ?? []).filter((o: any) => {
+    const codes = (o.categories ?? [])
+      .map((c: any) => (typeof c === "object" && c ? c.code : undefined))
+      .filter(Boolean)
+    return codes.length === 0 || codes.includes(slug)
+  })
   const [markRead] = useMarkNotificationReadMutation()
 
-  const notifications = notificationData?.docs ?? []
+  // Show a notification on this brand only. Order/payment notifications carry a
+  // populated order → categories; keep it if one matches the current brand.
+  // Notifications with no order (general) show on every brand.
+  const notifications = (notificationData?.docs ?? []).filter((n) => {
+    const order = typeof n.order === "object" && n.order ? n.order : null
+    if (!order) return true
+    const codes = (order.categories ?? [])
+      .map((c: any) => (typeof c === "object" && c ? c.code : undefined))
+      .filter(Boolean)
+    // Can't determine the brand → don't hide it.
+    return codes.length === 0 || codes.includes(slug)
+  })
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
   const [updateProfile, { isLoading: isSaving }] = useUpdateProfileMutation()
   const [isEditing, setIsEditing] = useState(false)
   const [openOrderId, setOpenOrderId] = useState<number | null>(null)
+  const [openNotifId, setOpenNotifId] = useState<number | null>(null)
+  const [showAllOrders, setShowAllOrders] = useState(false)
+  const [showAllNotifs, setShowAllNotifs] = useState(false)
   const [form, setForm] = useState({
     firstName: user.firstName ?? "",
     lastName: user.lastName ?? "",
@@ -123,7 +148,9 @@ function AccountContent() {
     }
   }
 
-  const wishlistItems = wishlist ?? []
+  const wishlistItems = (wishlist ?? []).filter(
+    (w: any) => w.product?.subCategory?.category?.code === slug,
+  )
   const tickets = ticketData?.docs ?? []
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0)
   const cartTotal = cartItems.reduce((s, i) => s + i.price * i.quantity, 0)
@@ -322,7 +349,7 @@ function AccountContent() {
                   </span>
                 </div>
                 <div className="divide-y divide-border">
-                  {orders.map((o) => {
+                  {(showAllOrders ? orders : orders.slice(0, 4)).map((o) => {
                     const items = o.orderItems ?? []
                     const itemCount = items.reduce((s, it) => s + (it.quantity ?? 0), 0)
                     const code = o.status?.code ?? ""
@@ -426,6 +453,15 @@ function AccountContent() {
                     )
                   })}
                 </div>
+                {orders.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllOrders((v) => !v)}
+                    className="w-full px-6 py-3 text-xs font-medium text-primary hover:bg-secondary/30 transition-colors border-t border-border"
+                  >
+                    {showAllOrders ? "Show less" : `View all ${orders.length} orders`}
+                  </button>
+                )}
               </motion.div>
             )}
 
@@ -443,10 +479,15 @@ function AccountContent() {
                   )}
                 </div>
                 <div className="divide-y divide-border">
-                  {notifications.slice(0, 5).map((n) => (
+                  {(showAllNotifs ? notifications : notifications.slice(0, 4)).map((n) => {
+                    const expanded = openNotifId === n.id
+                    return (
                     <div
                       key={n.id}
-                      onClick={() => { if (!n.isRead) markRead(n.id) }}
+                      onClick={() => {
+                        setOpenNotifId(expanded ? null : n.id)
+                        if (!n.isRead) markRead(n.id)
+                      }}
                       className={`px-6 py-3.5 flex gap-3 cursor-pointer transition-colors ${
                         n.isRead ? "hover:bg-secondary/30" : "bg-primary/5 hover:bg-primary/10"
                       }`}
@@ -456,18 +497,33 @@ function AccountContent() {
                         <p className={`text-sm ${n.isRead ? "text-foreground" : "font-semibold text-foreground"}`}>
                           {n.title}
                         </p>
-                        <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-3 mt-0.5">
+                        <p className={`text-xs text-muted-foreground leading-relaxed whitespace-pre-line mt-0.5 ${expanded ? "" : "line-clamp-3"}`}>
                           {n.message}
                         </p>
-                        <p className="text-[11px] text-muted-foreground/70 mt-1">
-                          {new Date(n.createdAt).toLocaleString("en-GB", {
-                            day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-                          })}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-[11px] text-muted-foreground/70">
+                            {new Date(n.createdAt).toLocaleString("en-GB", {
+                              day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+                            })}
+                          </p>
+                          <span className="text-[11px] font-medium text-primary">
+                            {expanded ? "Show less" : "View details"}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
+                {notifications.length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllNotifs((v) => !v)}
+                    className="w-full px-6 py-3 text-xs font-medium text-primary hover:bg-secondary/30 transition-colors border-t border-border"
+                  >
+                    {showAllNotifs ? "Show less" : `View all ${notifications.length} notifications`}
+                  </button>
+                )}
               </motion.div>
             )}
 

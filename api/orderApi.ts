@@ -11,6 +11,12 @@ export interface OrderItemPayload {
 
 export interface CreateOrderPayload {
   orderItems: OrderItemPayload[]
+  /** The signed-in shopper's account id, so the order shows in their history
+   * and their cart is cleared. Omitted for guests. The backend forces a
+   * client's own id regardless, so this can't be used to file under someone else. */
+  user?: number
+  /** Storefront checkouts are always "website" (vs admin-entered manual orders). */
+  orderSource?: string
   /** `cod` = pay on delivery, `preorder` = paid up front via bKash. */
   orderType: "cod" | "preorder"
   paymentMethod: string
@@ -71,6 +77,8 @@ export interface MyOrder {
   id: number
   orderNumber: string
   orderItems: OrderItem[]
+  /** Brands this order belongs to — used to show it only on its own storefront. */
+  categories?: Array<{ code?: string } | number>
   status: { id: number; title: string; code: string } | null
   transactionId: string | null
   customerName: string

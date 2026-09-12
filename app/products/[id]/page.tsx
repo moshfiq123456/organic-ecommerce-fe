@@ -121,6 +121,7 @@ function ProductActionButtons({ product }: { product: any }) {
       name: product.title,
       price: product.onSale && product.salePrice ? product.salePrice : product.price,
       image: getImageUrl(imageUrl),
+      categoryCode: product.subCategory?.category?.code,
     })
     toast.success("Added to cart!")
   }

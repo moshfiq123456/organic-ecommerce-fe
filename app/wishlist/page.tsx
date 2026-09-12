@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Heart, Loader2, ShoppingBag } from "lucide-react"
 
 import { useGetWishlistQuery } from "@/api/wishlistApi"
+import { useSubdomain } from "@/context/SubdomainContext"
 import { Button } from "@/components/ui/button"
 import { RequireAuth } from "@/components/require-auth"
 import { ProductCard, useQuickView } from "@/components/product-card"
@@ -24,8 +25,13 @@ export default function WishlistPage() {
 }
 
 function WishlistContent() {
-  const { data: items, isLoading } = useGetWishlistQuery()
+  const { data: allItems, isLoading } = useGetWishlistQuery()
   const { openQuickView, quickView } = useQuickView()
+  // Only show items belonging to the current brand (subdomain).
+  const slug = useSubdomain()
+  const items = (allItems ?? []).filter(
+    (item: any) => item.product?.subCategory?.category?.code === slug,
+  )
 
   return (
     <div className="min-h-screen bg-secondary/20 py-16 px-4">

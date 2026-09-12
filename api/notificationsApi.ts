@@ -10,7 +10,14 @@ export interface AppNotification {
   type: "order" | "payment" | "general"
   isRead: boolean
   createdAt: string
-  order?: { id: number; orderNumber?: string } | number | null
+  order?:
+    | {
+        id: number
+        orderNumber?: string
+        categories?: Array<{ code?: string } | number>
+      }
+    | number
+    | null
 }
 
 interface NotificationsResponse {
@@ -28,7 +35,9 @@ export const notificationsApi = createApi({
       query: () => ({
         url: "/api/notifications",
         method: "GET",
-        params: { limit: 20, sort: "-createdAt", depth: 1 },
+        // depth 2 so each notification's order carries its populated categories
+        // (with `code`) — used to show notifications only on their own brand.
+        params: { limit: 20, sort: "-createdAt", depth: 2 },
       }),
       providesTags: ["Notifications"],
     }),
