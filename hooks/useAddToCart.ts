@@ -10,16 +10,20 @@ export function useAddToCart() {
   const [addToCartApi] = useAddToCartMutation()
   const [updateCartItemApi] = useUpdateCartItemMutation()
 
-  const handleAddToCart = async (product: {
-    id: number
-    name: string
-    price: number
-    quantity?: number
-    [key: string]: any
-  }) => {
+  const handleAddToCart = async (
+    product: {
+      id: number
+      name: string
+      price: number
+      quantity?: number
+      [key: string]: any
+    },
+    options?: { silent?: boolean }
+  ) => {
     const qty = product.quantity || 1
 
-    // Always add to local Redux state (for UI)
+    // Always add to local Redux state (for UI). `silent` skips popping the
+    // cart drawer open (used by the inline quantity stepper on product cards).
     dispatch(
       addToCart({
         id: product.id,
@@ -27,6 +31,7 @@ export function useAddToCart() {
         price: product.price,
         quantity: qty,
         ...product,
+        silent: options?.silent,
       })
     )
 

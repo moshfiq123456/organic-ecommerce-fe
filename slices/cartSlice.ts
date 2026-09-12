@@ -27,14 +27,17 @@ const cartSlice = createSlice({
   name: "cart",
   initialState,
   reducers: {
-    addToCart: (state, action: PayloadAction<CartItem>) => {
-      const existing = state.items.find((item) => item.id === action.payload.id)
+    addToCart: (state, action: PayloadAction<CartItem & { silent?: boolean }>) => {
+      const { silent, ...payload } = action.payload
+      const existing = state.items.find((item) => item.id === payload.id)
       if (existing) {
         existing.quantity += 1
       } else {
-        state.items.push({ ...action.payload, quantity: 1 })
+        state.items.push({ ...payload, quantity: 1 })
       }
-      state.addSeq += 1
+      // A `silent` add (e.g. the inline +/- stepper on a card) updates the cart
+      // without popping the drawer open; only explicit adds bump the counter.
+      if (!silent) state.addSeq += 1
     },
     removeFromCart: (state, action: PayloadAction<number>) => {
       state.items = state.items.filter((item) => item.id !== action.payload)

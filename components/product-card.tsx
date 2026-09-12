@@ -244,10 +244,15 @@ export function ProductCard({
   const removeFromCart = useRemoveFromCart()
   const updateQuantity = useUpdateCartQuantity()
 
-  const handleIncrement = () => {
-    if (currentQty === 0) addToCart(toCartItem(product))
+  const addOne = (silent: boolean) => {
+    if (currentQty === 0) addToCart(toCartItem(product), { silent })
     else if (currentQty < product.stockIn) updateQuantity(product.id, currentQty + 1)
   }
+
+  // Inline +/- stepper: adjust quantity without popping the cart drawer open.
+  const handleStepUp = () => addOne(true)
+  // Explicit "Add to Cart" button: add and open the drawer, as expected.
+  const handleAddToCart = () => addOne(false)
 
   const handleDecrement = () => {
     if (currentQty > 1) updateQuantity(product.id, currentQty - 1)
@@ -466,7 +471,7 @@ export function ProductCard({
                 </button>
                 <span className="w-6 text-center text-[10px] font-medium">{currentQty}</span>
                 <button
-                  onClick={handleIncrement}
+                  onClick={handleStepUp}
                   disabled={currentQty >= product.stockIn}
                   className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs"
                 >
@@ -488,7 +493,7 @@ export function ProductCard({
               <motion.div className="flex-1" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}>
                 <Button
                   size="sm"
-                  onClick={handleIncrement}
+                  onClick={handleAddToCart}
                   className="gap-0.5 sm:gap-1 text-[10px] sm:text-xs w-full rounded-xl px-1 sm:px-3"
                   disabled={product.stockIn === 0}
                 >
